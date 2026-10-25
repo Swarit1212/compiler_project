@@ -28,8 +28,68 @@ import {
  * @returns {Promise<CompileResult>}
  */
 export async function runPipeline(langModule, source, callbacks = {}) {
-  const result = createResult(langModule.id, source, "live");
   const { onPhaseStart, onPhaseEnd } = callbacks;
+  let backendResult = null;
+
+  // Try to use the backend if available
+  if (langModule.backend && typeof langModule.backend.run === 'function') {
+    try {
+      backendResult = await langModule.backend.run(source);
+    } catch (err) {
+      // Fall back to frontend if backend fails
+      console.warn('Backend unavailable or failed, falling back to frontend for', langModule.id, err);
+    }
+  }
+
+  if (backendResult) {
+    const result = createResult(langModule.id, source, "backend");
+    const lexical = langModule.lexer.tokenize(source);
+    const tree = await parseWithTreeSitter(langModule.id, source);
+
+    backendResult.phases = backendResult.phases || {};
+    backendResult.phases.lexical = {
+      status: "completed",
+      tokens: lexical.tokens ?? [],
+      errors: lexical.errors ?? [],
+    };
+    backendResult.phases.syntax = tree?.hasError
+      ? {
+          status: Status.FAILED,
+          diagnostic: {
+            phase: "syntax",
+            message: "Tree-sitter found invalid syntax.",
+            line: (tree.errorNode?.startPosition?.row ?? 0) + 1,
+            col: (tree.errorNode?.startPosition?.column ?? 0) + 1,
+          },
+        }
+      : {
+          status: "completed",
+          ast: tree?.ast,
+          astText: tree?.astText ?? "",
+          errors: [],
+        };
+
+    for (const phaseId of PHASE_ORDER) {
+      const phaseData = backendResult.phases[phaseId] ?? {
+        status: Status.NOT_RUN,
+        reason: "Phase was not provided by the backend.",
+      };
+      result.phases[phaseId] = {
+        ...phaseData,
+        status: phaseData.status ?? Status.COMPLETED,
+      };
+      if (onPhaseEnd) onPhaseEnd(phaseId, result.phases[phaseId]);
+    }
+    result.status = Object.values(result.phases).some(
+      (phase) => phase.status === Status.FAILED,
+    )
+      ? Status.FAILED
+      : Status.COMPLETED;
+    return result;
+  }
+
+  // Frontend pipeline (Tree-sitter and educational backends)
+  const result = createResult(langModule.id, source, backendResult ? "backend" : "live");
 
   const phaseRunners = [
     {
@@ -138,6 +198,19 @@ export async function runPipeline(langModule, source, callbacks = {}) {
     }
 
     try {
+      // The backend deliberately owns semantic analysis and later phases. Keep
+      // lexical/syntax data from Tree-sitter so those UI panels remain useful.
+      if (backendResult && i >= 2) {
+        const phaseData = backendResult.phases?.[id];
+        if (!phaseData) throw new Error(`Backend did not return the ${id} phase.`);
+        if (id === "semantic") ctx.symbolTable = phaseData.symbolTable;
+        if (id === "intermediate") ctx.instructions = phaseData.instructions;
+        if (id === "optimization") ctx.optimizedInstructions = phaseData.after;
+        phaseCompleted(result, id, phaseData);
+        if (onPhaseEnd) onPhaseEnd(id, result.phases[id]);
+        continue;
+      }
+
       const phaseResult = await fn(ctx);
       if (phaseResult?.errors?.length) {
         throw phaseResult.errors[0];

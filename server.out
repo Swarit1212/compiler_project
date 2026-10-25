@@ -1,0 +1,160 @@
+Compiler backend server listening at http://localhost:4174
+Executing: python3 -c import ast, json, sys; source = open(sys.argv[1], 'r').read(); tree = ast.parse(source); result = {'checks': [], 'warnings': [], 'symbolTable': {}}; print(json.dumps(result)) C:\Users\swari\onedrive\desktop\code\college_work\compiler_project\server\temp\1792053751639\source.py
+Command succeeded: python3
+Executing: python3 C:\Users\swari\onedrive\desktop\code\college_work\compiler_project\server\temp\1792053751639\dis_script.py C:\Users\swari\onedrive\desktop\code\college_work\compiler_project\server\temp\1792053751639\source.py
+Command succeeded: python3
+Executing: node -e const acorn = require('acorn');
+        const fs = require('fs');
+        const source = fs.readFileSync(process.argv[2], 'utf8');
+        try {
+          const ast = acorn.parse(source, { ecmaVersion: 2022, sourceType: 'script' });
+          // Basic semantic info
+          const checks = [];
+          const warnings = [];
+          const symbolTable = {};
+          // We could walk the AST to collect identifiers, but keep simple for now
+          console.log(JSON.stringify({ checks, warnings, symbolTable }));
+        } catch (e) {
+          console.log(JSON.stringify({ checks: [], warnings: [{ message: e.message }], symbolTable: {} }));
+        }
+         C:\Users\swari\onedrive\desktop\code\college_work\compiler_project\server\temp\1792053817468\source.js
+Command failed: node Error: Command failed: node -e const acorn = require('acorn');
+        const fs = require('fs');
+        const source = fs.readFileSync(process.argv[2], 'utf8');
+        try {
+          const ast = acorn.parse(source, { ecmaVersion: 2022, sourceType: 'script' });
+          // Basic semantic info
+          const checks = [];
+          const warnings = [];
+          const symbolTable = {};
+          // We could walk the AST to collect identifiers, but keep simple for now
+          console.log(JSON.stringify({ checks, warnings, symbolTable }));
+        } catch (e) {
+          console.log(JSON.stringify({ checks: [], warnings: [{ message: e.message }], symbolTable: {} }));
+        }
+         C:\Users\swari\onedrive\desktop\code\college_work\compiler_project\server\temp\1792053817468\source.js
+node:internal/modules/cjs/loader:1404
+  throw err;
+  ^
+
+Error: Cannot find module 'acorn'
+Require stack:
+- C:\Users\swari\onedrive\desktop\code\college_work\compiler_project\[eval]
+    at Function._resolveFilename (node:internal/modules/cjs/loader:1401:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1057:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1062:22)
+    at Function._load (node:internal/modules/cjs/loader:1211:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1487:12)
+    at require (node:internal/modules/helpers:135:16)
+    at [eval]:1:15
+    at runScriptInThisContext (node:internal/vm:209:10) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'C:\\Users\\swari\\onedrive\\desktop\\code\\college_work\\compiler_project\\[eval]'
+  ]
+}
+
+Node.js v22.17.1
+
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at ChildProcess.exithandler (node:child_process:415:12)
+    at ChildProcess.emit (node:events:518:28)
+    at maybeClose (node:internal/child_process:1101:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+  code: 1,
+  killed: false,
+  signal: null,
+  cmd: "node -e const acorn = require('acorn');\n" +
+    "        const fs = require('fs');\n" +
+    "        const source = fs.readFileSync(process.argv[2], 'utf8');\n" +
+    '        try {\n' +
+    "          const ast = acorn.parse(source, { ecmaVersion: 2022, sourceType: 'script' });\n" +
+    '          // Basic semantic info\n' +
+    '          const checks = [];\n' +
+    '          const warnings = [];\n' +
+    '          const symbolTable = {};\n' +
+    '          // We could walk the AST to collect identifiers, but keep simple for now\n' +
+    '          console.log(JSON.stringify({ checks, warnings, symbolTable }));\n' +
+    '        } catch (e) {\n' +
+    '          console.log(JSON.stringify({ checks: [], warnings: [{ message: e.message }], symbolTable: {} }));\n' +
+    '        }\n' +
+    '         C:\\Users\\swari\\onedrive\\desktop\\code\\college_work\\compiler_project\\server\\temp\\1792053817468\\source.js'
+}
+Executing: node -e const acorn = require('acorn');
+        const fs = require('fs');
+        const source = fs.readFileSync(process.argv[2], 'utf8');
+        const ast = acorn.parse(source, { ecmaVersion: 2022, sourceType: 'script' });
+        // Very basic TAC generation placeholder
+        const instructions = [
+          '; JavaScript TAC generation (placeholder)',
+          '; In a full implementation, we would walk the AST to generate three-address code',
+          '; For now, we show that parsing succeeded'
+        ];
+        console.log(JSON.stringify({ instructions }));
+         C:\Users\swari\onedrive\desktop\code\college_work\compiler_project\server\temp\1792053817468\source.js
+Command failed: node Error: Command failed: node -e const acorn = require('acorn');
+        const fs = require('fs');
+        const source = fs.readFileSync(process.argv[2], 'utf8');
+        const ast = acorn.parse(source, { ecmaVersion: 2022, sourceType: 'script' });
+        // Very basic TAC generation placeholder
+        const instructions = [
+          '; JavaScript TAC generation (placeholder)',
+          '; In a full implementation, we would walk the AST to generate three-address code',
+          '; For now, we show that parsing succeeded'
+        ];
+        console.log(JSON.stringify({ instructions }));
+         C:\Users\swari\onedrive\desktop\code\college_work\compiler_project\server\temp\1792053817468\source.js
+node:internal/modules/cjs/loader:1404
+  throw err;
+  ^
+
+Error: Cannot find module 'acorn'
+Require stack:
+- C:\Users\swari\onedrive\desktop\code\college_work\compiler_project\[eval]
+    at Function._resolveFilename (node:internal/modules/cjs/loader:1401:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1057:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1062:22)
+    at Function._load (node:internal/modules/cjs/loader:1211:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1487:12)
+    at require (node:internal/modules/helpers:135:16)
+    at [eval]:1:15
+    at runScriptInThisContext (node:internal/vm:209:10) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'C:\\Users\\swari\\onedrive\\desktop\\code\\college_work\\compiler_project\\[eval]'
+  ]
+}
+
+Node.js v22.17.1
+
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at ChildProcess.exithandler (node:child_process:415:12)
+    at ChildProcess.emit (node:events:518:28)
+    at maybeClose (node:internal/child_process:1101:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+  code: 1,
+  killed: false,
+  signal: null,
+  cmd: "node -e const acorn = require('acorn');\n" +
+    "        const fs = require('fs');\n" +
+    "        const source = fs.readFileSync(process.argv[2], 'utf8');\n" +
+    "        const ast = acorn.parse(source, { ecmaVersion: 2022, sourceType: 'script' });\n" +
+    '        // Very basic TAC generation placeholder\n' +
+    '        const instructions = [\n' +
+    "          '; JavaScript TAC generation (placeholder)',\n" +
+    "          '; In a full implementation, we would walk the AST to generate three-address code',\n" +
+    "          '; For now, we show that parsing succeeded'\n" +
+    '        ];\n' +
+    '        console.log(JSON.stringify({ instructions }));\n' +
+    '         C:\\Users\\swari\\onedrive\\desktop\\code\\college_work\\compiler_project\\server\\temp\\1792053817468\\source.js'
+}
+Executing: python3 -c import ast, json, sys; source = open(sys.argv[1], 'r').read(); tree = ast.parse(source); result = {'checks': [], 'warnings': [], 'symbolTable': {}}; print(json.dumps(result)) C:\Users\swari\onedrive\desktop\code\college_work\compiler_project\server\temp\1792054140089\source.py
+Command succeeded: python3
+Executing: python3 C:\Users\swari\onedrive\desktop\code\college_work\compiler_project\server\temp\1792054140089\dis_script.py C:\Users\swari\onedrive\desktop\code\college_work\compiler_project\server\temp\1792054140089\source.py
+Command succeeded: python3

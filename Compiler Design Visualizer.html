@@ -1,267 +1,762 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Compiler Design Visualizer</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-:root{
-  --bg:#12141a; --panel:#1a1d25; --panel2:#20242e; --border:#2b2f3a;
-  --text:#e7e9ee; --muted:#8b92a5; --accent:#5fa8ff; --accent-dim:#2c4b6e;
-  --ok:#4ade80; --ok-dim:#1e3a2a; --err:#f87171; --err-dim:#3a1f22;
-  --warn:#fbbf24; --idle:#4b5160;
-  --mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
-  --sans:'IBM Plex Sans',system-ui,sans-serif;
-  box-sizing:border-box;
-  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
-}
-*{box-sizing:border-box;}
-html{scroll-padding-top:env(safe-area-inset-top,0px);}
-body{
-  margin:0; background:var(--bg); color:var(--text); font-family:var(--sans);
-  -webkit-font-smoothing:antialiased;
-}
-button{font-family:var(--sans);}
-header{
-  padding:18px 24px; border-bottom:1px solid var(--border);
-  display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
-  position:sticky; top:0; background:rgba(18,20,26,.92); backdrop-filter:blur(6px); z-index:20;
-  padding-top:calc(18px + env(safe-area-inset-top,0px));
-}
-.brand{display:flex; align-items:baseline; gap:10px;}
-.brand h1{font-size:17px; font-weight:600; margin:0; letter-spacing:.2px;}
-.brand span{font-size:12px; color:var(--muted); font-family:var(--mono);}
-.mode-badge{
-  font-family:var(--mono); font-size:11.5px; padding:6px 10px; border-radius:3px;
-  background:var(--panel2); border:1px solid var(--border); color:var(--accent);
-  display:flex; align-items:center; gap:6px;
-}
-.mode-badge::before{content:''; width:6px; height:6px; border-radius:50%; background:var(--accent); flex:none;}
-main{max-width:1240px; margin:0 auto; padding:22px 24px 60px;}
-.layout{display:grid; grid-template-columns:1fr; gap:20px;}
-@media(min-width:920px){ .layout{grid-template-columns:400px 1fr;} }
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Compiler Design Visualizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #12141a;
+        --panel: #1a1d25;
+        --panel2: #20242e;
+        --border: #2b2f3a;
+        --text: #e7e9ee;
+        --muted: #8b92a5;
+        --accent: #5fa8ff;
+        --accent-dim: #2c4b6e;
+        --ok: #4ade80;
+        --ok-dim: #1e3a2a;
+        --err: #f87171;
+        --err-dim: #3a1f22;
+        --warn: #fbbf24;
+        --idle: #4b5160;
+        --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+        --sans: "IBM Plex Sans", system-ui, sans-serif;
+        box-sizing: border-box;
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-padding-top: env(safe-area-inset-top, 0px);
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        -webkit-font-smoothing: antialiased;
+      }
+      button {
+        font-family: var(--sans);
+      }
+      header {
+        padding: 18px 24px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        position: sticky;
+        top: 0;
+        background: rgba(18, 20, 26, 0.92);
+        backdrop-filter: blur(6px);
+        z-index: 20;
+        padding-top: calc(18px + env(safe-area-inset-top, 0px));
+      }
+      .brand {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+      }
+      .brand h1 {
+        font-size: 17px;
+        font-weight: 600;
+        margin: 0;
+        letter-spacing: 0.2px;
+      }
+      .brand span {
+        font-size: 12px;
+        color: var(--muted);
+        font-family: var(--mono);
+      }
+      .mode-badge {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        padding: 6px 10px;
+        border-radius: 3px;
+        background: var(--panel2);
+        border: 1px solid var(--border);
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .mode-badge::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+        flex: none;
+      }
+      main {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 22px 24px 60px;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+      @media (min-width: 920px) {
+        .layout {
+          grid-template-columns: 400px 1fr;
+        }
+      }
 
-.panel{background:var(--panel); border:1px solid var(--border); border-radius:6px; overflow:hidden;}
-.panel-head{padding:12px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:8px;}
-.panel-head h2{font-size:12.5px; margin:0; font-weight:600; color:var(--muted);}
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      .panel-head {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .panel-head h2 {
+        font-size: 12.5px;
+        margin: 0;
+        font-weight: 600;
+        color: var(--muted);
+      }
 
-/* Left column */
-.left{display:flex; flex-direction:column; gap:16px; position:sticky; top:76px;}
-@media(max-width:919px){ .left{position:static;} }
+      /* Left column */
+      .left {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        position: sticky;
+        top: 76px;
+      }
+      @media (max-width: 919px) {
+        .left {
+          position: static;
+        }
+      }
 
-.select-wrap{padding:12px 14px; border-bottom:1px solid var(--border);}
-.select-wrap label{display:block; font-size:11.5px; color:var(--muted); margin-bottom:6px;}
-select{
-  width:100%; background:var(--panel2); color:var(--text); border:1px solid var(--border);
-  border-radius:4px; padding:8px 10px; font-size:13px; font-family:var(--sans);
-}
-.editor-wrap{display:flex; font-family:var(--mono); font-size:13px; line-height:1.6; max-height:320px; overflow:auto;}
-.linenos{
-  padding:12px 8px; text-align:right; color:var(--idle); user-select:none; background:var(--panel);
-  border-right:1px solid var(--border); white-space:pre; flex:none; min-width:34px;
-}
-textarea{
-  flex:1; resize:none; border:none; outline:none; background:transparent; color:var(--text);
-  padding:12px 12px; font-family:var(--mono); font-size:13px; line-height:1.6; min-height:280px;
-  white-space:pre; overflow-wrap:normal; overflow-x:auto;
-}
-textarea:disabled{opacity:.6;}
-.toolbar{display:flex; gap:8px; padding:12px 14px; border-top:1px solid var(--border); flex-wrap:wrap;}
-.btn{
-  font-size:12.5px; padding:8px 14px; border-radius:4px; border:1px solid var(--border);
-  background:var(--panel2); color:var(--text); cursor:pointer; font-weight:500;
-}
-.btn:focus-visible, select:focus-visible, .phase-pill:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
-.btn:hover:not(:disabled){border-color:var(--accent-dim);}
-.btn-primary{background:var(--accent); border-color:var(--accent); color:#0b1420;}
-.btn-primary:hover:not(:disabled){filter:brightness(1.08);}
-.btn:disabled{opacity:.45; cursor:not-allowed;}
-.hint{padding:0 14px 14px; font-size:11.5px; color:var(--muted); line-height:1.5;}
+      .select-wrap {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+      }
+      .select-wrap label {
+        display: block;
+        font-size: 11.5px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      select {
+        width: 100%;
+        background: var(--panel2);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 8px 10px;
+        font-size: 13px;
+        font-family: var(--sans);
+      }
+      .editor-wrap {
+        display: flex;
+        font-family: var(--mono);
+        font-size: 13px;
+        line-height: 1.6;
+        max-height: 320px;
+        overflow: auto;
+      }
+      .linenos {
+        padding: 12px 8px;
+        text-align: right;
+        color: var(--idle);
+        user-select: none;
+        background: var(--panel);
+        border-right: 1px solid var(--border);
+        white-space: pre;
+        flex: none;
+        min-width: 34px;
+      }
+      textarea {
+        flex: 1;
+        resize: none;
+        border: none;
+        outline: none;
+        background: transparent;
+        color: var(--text);
+        padding: 12px 12px;
+        font-family: var(--mono);
+        font-size: 13px;
+        line-height: 1.6;
+        min-height: 280px;
+        white-space: pre;
+        overflow-wrap: normal;
+        overflow-x: auto;
+      }
+      textarea:disabled {
+        opacity: 0.6;
+      }
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        padding: 12px 14px;
+        border-top: 1px solid var(--border);
+        flex-wrap: wrap;
+      }
+      .btn {
+        font-size: 12.5px;
+        padding: 8px 14px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        background: var(--panel2);
+        color: var(--text);
+        cursor: pointer;
+        font-weight: 500;
+      }
+      .btn:focus-visible,
+      select:focus-visible,
+      .phase-pill:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .btn:hover:not(:disabled) {
+        border-color: var(--accent-dim);
+      }
+      .btn-primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #0b1420;
+      }
+      .btn-primary:hover:not(:disabled) {
+        filter: brightness(1.08);
+      }
+      .btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .hint {
+        padding: 0 14px 14px;
+        font-size: 11.5px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
 
-/* Pipeline strip */
-.pipeline{display:flex; gap:6px; padding:14px; overflow-x:auto;}
-.phase-pill{
-  flex:1; min-width:100px; padding:10px 10px; border-radius:5px; border:1px solid var(--border);
-  background:var(--panel2); text-align:left; cursor:pointer; position:relative;
-}
-.phase-pill .num{font-family:var(--mono); font-size:10.5px; color:var(--muted);}
-.phase-pill .name{display:block; font-size:12px; font-weight:600; margin-top:2px;}
-.phase-pill .status{display:flex; align-items:center; gap:5px; font-size:10.5px; margin-top:5px; font-family:var(--mono);}
-.phase-pill.st-completed{border-color:var(--ok-dim); background:linear-gradient(180deg,rgba(74,222,128,.07),transparent);}
-.phase-pill.st-completed .status{color:var(--ok);}
-.phase-pill.st-failed{border-color:var(--err-dim); background:linear-gradient(180deg,rgba(248,113,113,.09),transparent);}
-.phase-pill.st-failed .status{color:var(--err);}
-.phase-pill.st-not_run .status{color:var(--idle);}
-.phase-pill.st-running{border-color:var(--accent-dim);}
-.phase-pill.st-running .status{color:var(--accent);}
-.phase-pill.st-pending .status{color:var(--muted);}
+      /* Pipeline strip */
+      .pipeline {
+        display: flex;
+        gap: 6px;
+        padding: 14px;
+        overflow-x: auto;
+      }
+      .phase-pill {
+        flex: 1;
+        min-width: 100px;
+        padding: 10px 10px;
+        border-radius: 5px;
+        border: 1px solid var(--border);
+        background: var(--panel2);
+        text-align: left;
+        cursor: pointer;
+        position: relative;
+      }
+      .phase-pill .num {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--muted);
+      }
+      .phase-pill .name {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        margin-top: 2px;
+      }
+      .phase-pill .status {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 10.5px;
+        margin-top: 5px;
+        font-family: var(--mono);
+      }
+      .phase-pill.st-completed {
+        border-color: var(--ok-dim);
+        background: linear-gradient(
+          180deg,
+          rgba(74, 222, 128, 0.07),
+          transparent
+        );
+      }
+      .phase-pill.st-completed .status {
+        color: var(--ok);
+      }
+      .phase-pill.st-failed {
+        border-color: var(--err-dim);
+        background: linear-gradient(
+          180deg,
+          rgba(248, 113, 113, 0.09),
+          transparent
+        );
+      }
+      .phase-pill.st-failed .status {
+        color: var(--err);
+      }
+      .phase-pill.st-not_run .status {
+        color: var(--idle);
+      }
+      .phase-pill.st-running {
+        border-color: var(--accent-dim);
+      }
+      .phase-pill.st-running .status {
+        color: var(--accent);
+      }
+      .phase-pill.st-pending .status {
+        color: var(--muted);
+      }
 
-/* Live generation feed */
-.feed{display:flex; flex-direction:column; gap:12px;}
-.phase-card{
-  border:1px solid var(--border); border-radius:6px; background:var(--panel); overflow:hidden;
-  opacity:0; transform:translateY(10px); animation:cardIn .4s ease forwards;
-}
-@keyframes cardIn{to{opacity:1; transform:translateY(0);}}
-@media (prefers-reduced-motion: reduce){ .phase-card{animation:none; opacity:1; transform:none;} }
-.card-head{display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--border);}
-.card-head .cnum{font-family:var(--mono); font-size:11px; color:var(--muted); background:var(--panel2); padding:2px 6px; border-radius:3px; flex:none;}
-.card-head h3{font-size:13.5px; margin:0; font-weight:600; flex:1;}
-.card-status{font-family:var(--mono); font-size:11px; display:flex; align-items:center; gap:6px; flex:none;}
-.card-status.running{color:var(--accent);}
-.card-status.completed{color:var(--ok);}
-.card-status.failed{color:var(--err);}
-.card-status.not_run{color:var(--idle);}
-.spinner{width:11px; height:11px; border-radius:50%; border:2px solid var(--border); border-top-color:var(--accent); animation:spin .7s linear infinite; flex:none;}
-@keyframes spin{to{transform:rotate(360deg);}}
-@media (prefers-reduced-motion: reduce){ .spinner{animation:none;} }
-.card-body{padding:16px;}
-.card-body.skeleton{display:flex; flex-direction:column; gap:8px;}
-.skel-line{height:11px; border-radius:3px; background:linear-gradient(90deg,var(--panel2),var(--border),var(--panel2)); background-size:200% 100%; animation:shimmer 1.3s linear infinite;}
-@media (prefers-reduced-motion: reduce){ .skel-line{animation:none;} }
-@keyframes shimmer{to{background-position:-200% 0;}}
-.skel-line:nth-child(1){width:70%;} .skel-line:nth-child(2){width:45%;} .skel-line:nth-child(3){width:58%;}
+      /* Live generation feed */
+      .feed {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .phase-card {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--panel);
+        overflow: hidden;
+        opacity: 0;
+        transform: translateY(10px);
+        animation: cardIn 0.4s ease forwards;
+      }
+      @keyframes cardIn {
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .phase-card {
+          animation: none;
+          opacity: 1;
+          transform: none;
+        }
+      }
+      .card-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+      }
+      .card-head .cnum {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+        background: var(--panel2);
+        padding: 2px 6px;
+        border-radius: 3px;
+        flex: none;
+      }
+      .card-head h3 {
+        font-size: 13.5px;
+        margin: 0;
+        font-weight: 600;
+        flex: 1;
+      }
+      .card-status {
+        font-family: var(--mono);
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: none;
+      }
+      .card-status.running {
+        color: var(--accent);
+      }
+      .card-status.completed {
+        color: var(--ok);
+      }
+      .card-status.failed {
+        color: var(--err);
+      }
+      .card-status.not_run {
+        color: var(--idle);
+      }
+      .spinner {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        border: 2px solid var(--border);
+        border-top-color: var(--accent);
+        animation: spin 0.7s linear infinite;
+        flex: none;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .spinner {
+          animation: none;
+        }
+      }
+      .card-body {
+        padding: 16px;
+      }
+      .card-body.skeleton {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .skel-line {
+        height: 11px;
+        border-radius: 3px;
+        background: linear-gradient(
+          90deg,
+          var(--panel2),
+          var(--border),
+          var(--panel2)
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.3s linear infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .skel-line {
+          animation: none;
+        }
+      }
+      @keyframes shimmer {
+        to {
+          background-position: -200% 0;
+        }
+      }
+      .skel-line:nth-child(1) {
+        width: 70%;
+      }
+      .skel-line:nth-child(2) {
+        width: 45%;
+      }
+      .skel-line:nth-child(3) {
+        width: 58%;
+      }
 
-.badge{
-  display:inline-block; font-family:var(--mono); font-size:10.5px; padding:2px 7px; border-radius:3px;
-  border:1px solid var(--border); color:var(--muted); margin-bottom:12px;
-}
-.badge.fixture{color:var(--accent); border-color:var(--accent-dim);}
-.badge.illustrative{color:var(--warn); border-color:#4a3a15;}
+      .badge {
+        display: inline-block;
+        font-family: var(--mono);
+        font-size: 10.5px;
+        padding: 2px 7px;
+        border-radius: 3px;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        margin-bottom: 12px;
+      }
+      .badge.fixture {
+        color: var(--accent);
+        border-color: var(--accent-dim);
+      }
+      .badge.illustrative {
+        color: var(--warn);
+        border-color: #4a3a15;
+      }
 
-table{width:100%; border-collapse:collapse; font-size:12.5px;}
-th,td{text-align:left; padding:7px 9px; border-bottom:1px solid var(--border);}
-th{color:var(--muted); font-weight:600; font-size:11px;}
-td{font-family:var(--mono);}
-.scroll-x{overflow-x:auto;}
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 7px 9px;
+        border-bottom: 1px solid var(--border);
+      }
+      th {
+        color: var(--muted);
+        font-weight: 600;
+        font-size: 11px;
+      }
+      td {
+        font-family: var(--mono);
+      }
+      .scroll-x {
+        overflow-x: auto;
+      }
 
-pre.code-block{
-  background:var(--panel2); border:1px solid var(--border); border-radius:5px; padding:12px 14px;
-  font-family:var(--mono); font-size:12.5px; line-height:1.7; overflow-x:auto; margin:0;
-}
-.ast-tree{font-family:var(--mono); font-size:12.5px; line-height:1.9; white-space:pre;}
+      pre.code-block {
+        background: var(--panel2);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 12px 14px;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.7;
+        overflow-x: auto;
+        margin: 0;
+      }
+      .ast-tree {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.9;
+        white-space: pre;
+      }
 
-.tac-compare{display:grid; grid-template-columns:1fr; gap:14px;}
-@media(min-width:700px){ .tac-compare{grid-template-columns:1fr 1fr;} }
-.tac-compare h4{font-size:11px; color:var(--muted); margin:0 0 8px; font-weight:600;}
-.pass-note{
-  margin-top:12px; padding:10px 12px; background:var(--panel2); border:1px solid var(--border);
-  border-radius:5px; font-size:12.5px; border-left:3px solid var(--accent);
-}
+      .tac-compare {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+      @media (min-width: 700px) {
+        .tac-compare {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .tac-compare h4 {
+        font-size: 11px;
+        color: var(--muted);
+        margin: 0 0 8px;
+        font-weight: 600;
+      }
+      .pass-note {
+        margin-top: 12px;
+        padding: 10px 12px;
+        background: var(--panel2);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        font-size: 12.5px;
+        border-left: 3px solid var(--accent);
+      }
 
-.diag{
-  margin-top:12px; padding:12px 14px; border:1px solid var(--err-dim); background:rgba(248,113,113,.06);
-  border-radius:5px; border-left:3px solid var(--err);
-}
-.diag .dphase{font-family:var(--mono); font-size:11px; color:var(--err); margin-bottom:4px;}
-.diag .dmsg{font-size:13px; line-height:1.5;}
-.diag .dloc{font-family:var(--mono); font-size:11.5px; color:var(--muted); margin-top:6px;}
+      .diag {
+        margin-top: 12px;
+        padding: 12px 14px;
+        border: 1px solid var(--err-dim);
+        background: rgba(248, 113, 113, 0.06);
+        border-radius: 5px;
+        border-left: 3px solid var(--err);
+      }
+      .diag .dphase {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--err);
+        margin-bottom: 4px;
+      }
+      .diag .dmsg {
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .diag .dloc {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--muted);
+        margin-top: 6px;
+      }
 
-.not-run-body{color:var(--muted); font-size:13px; line-height:1.6;}
-.explain{font-size:12px; color:var(--muted); margin-top:12px; line-height:1.6; border-top:1px solid var(--border); padding-top:12px;}
+      .not-run-body {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      .explain {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 12px;
+        line-height: 1.6;
+        border-top: 1px solid var(--border);
+        padding-top: 12px;
+      }
 
-.empty-state{padding:40px 16px; text-align:center; color:var(--muted); font-size:13px;}
-.empty-state strong{display:block; color:var(--text); font-size:14px; margin-bottom:6px;}
+      .empty-state {
+        padding: 40px 16px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .empty-state strong {
+        display: block;
+        color: var(--text);
+        font-size: 14px;
+        margin-bottom: 6px;
+      }
 
-.unsupported{padding:16px; border:1px solid var(--border); border-radius:6px; background:var(--panel2);}
-.unsupported strong{display:block; margin-bottom:6px; font-size:13px;}
-.unsupported p{font-size:12.5px; color:var(--muted); line-height:1.6; margin:0 0 10px;}
+      .unsupported {
+        padding: 16px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--panel2);
+      }
+      .unsupported strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 13px;
+      }
+      .unsupported p {
+        font-size: 12.5px;
+        color: var(--muted);
+        line-height: 1.6;
+        margin: 0 0 10px;
+      }
 
-footer{max-width:1240px; margin:0 auto; padding:0 24px 40px; color:var(--muted); font-size:11.5px;}
-</style>
-</head>
-<body>
-
-<header>
-  <div class="brand">
-    <h1>Compiler Design Visualizer</h1>
-    <span>six-phase C-like pipeline</span>
-  </div>
-  <div class="mode-badge" id="modeBadge">Demonstration output — results are predefined for this example</div>
-</header>
-
-<main>
-  <div class="layout">
-    <!-- LEFT: editor -->
-    <div class="left">
-      <div class="panel">
-        <div class="select-wrap">
-          <label for="exampleSelect">Example</label>
-          <select id="exampleSelect">
-            <option value="">— choose an example —</option>
-            <option value="valid">A · Valid arithmetic program</option>
-            <option value="syntaxErr">B · Syntax error</option>
-            <option value="semanticErr">C · Semantic error</option>
-            <option value="constFold">D · Constant folding</option>
-          </select>
-        </div>
-        <div class="editor-wrap">
-          <div class="linenos" id="linenos" aria-hidden="true">1</div>
-          <textarea id="source" spellcheck="false" aria-label="Source code editor" placeholder="// choose an example above, or type C-like source here"></textarea>
-        </div>
-        <div class="toolbar">
-          <button class="btn btn-primary" id="analyzeBtn">Analyze</button>
-          <button class="btn" id="clearBtn">Clear</button>
-        </div>
-        <div class="hint" id="statusHint">Load a predefined example, then select Analyze to run the pipeline.</div>
+      footer {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 0 24px 40px;
+        color: var(--muted);
+        font-size: 11.5px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand">
+        <h1>Compiler Design Visualizer</h1>
+        <span>six-phase C-like pipeline</span>
       </div>
-    </div>
-
-    <!-- RIGHT: pipeline + live feed -->
-    <div class="right">
-      <div class="panel" style="margin-bottom:16px;">
-        <div class="panel-head"><h2>Pipeline</h2></div>
-        <div class="pipeline" id="pipeline" aria-label="Compiler phases"></div>
+      <div class="mode-badge" id="modeBadge">
+        Demonstration output — results are predefined for this example
       </div>
+    </header>
 
-      <div class="feed" id="feed">
-        <div class="empty-state">
-          <strong>No run yet</strong>
-          Choose an example and select Analyze — each phase will generate its output in order, top to bottom.
+    <main>
+      <div class="layout">
+        <!-- LEFT: editor -->
+        <div class="left">
+          <div class="panel">
+            <div class="select-wrap">
+              <label for="exampleSelect">Example</label>
+              <select id="exampleSelect">
+                <option value="">— choose an example —</option>
+                <option value="valid">A · Valid arithmetic program</option>
+                <option value="syntaxErr">B · Syntax error</option>
+                <option value="semanticErr">C · Semantic error</option>
+                <option value="constFold">D · Constant folding</option>
+              </select>
+            </div>
+            <div class="editor-wrap">
+              <div class="linenos" id="linenos" aria-hidden="true">1</div>
+              <textarea
+                id="source"
+                spellcheck="false"
+                aria-label="Source code editor"
+                placeholder="// choose an example above, or type C-like source here"
+              ></textarea>
+            </div>
+            <div class="toolbar">
+              <button class="btn btn-primary" id="analyzeBtn">Analyze</button>
+              <button class="btn" id="clearBtn">Clear</button>
+            </div>
+            <div class="hint" id="statusHint">
+              Load a predefined example, then select Analyze to run the
+              pipeline.
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: pipeline + live feed -->
+        <div class="right">
+          <div class="panel" style="margin-bottom: 16px">
+            <div class="panel-head"><h2>Pipeline</h2></div>
+            <div
+              class="pipeline"
+              id="pipeline"
+              aria-label="Compiler phases"
+            ></div>
+          </div>
+
+          <div class="feed" id="feed">
+            <div class="empty-state">
+              <strong>No run yet</strong>
+              Choose an example and select Analyze — each phase will generate
+              its output in order, top to bottom.
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  </div>
-</main>
+    </main>
 
-<footer>
-  Fixture-backed prototype for a small set of C-like demonstration programs. Output is precomputed per example; the phase-by-phase reveal is a pacing simulation, not a live compiler run. See the mode badge above for what each result represents.
-</footer>
+    <footer>
+      Fixture-backed prototype for a small set of C-like demonstration programs.
+      Output is precomputed per example; the phase-by-phase reveal is a pacing
+      simulation, not a live compiler run. See the mode badge above for what
+      each result represents.
+    </footer>
 
-<script>
-const PHASES = [
-  {id:'lexical', name:'Lexical analysis'},
-  {id:'syntax', name:'Syntax analysis'},
-  {id:'semantic', name:'Semantic analysis'},
-  {id:'intermediate', name:'Intermediate code (TAC)'},
-  {id:'optimization', name:'Optimization'},
-  {id:'target', name:'Target code'},
-];
+    <script>
+      const PHASES = [
+        { id: "lexical", name: "Lexical analysis" },
+        { id: "syntax", name: "Syntax analysis" },
+        { id: "semantic", name: "Semantic analysis" },
+        { id: "intermediate", name: "Intermediate code (TAC)" },
+        { id: "optimization", name: "Optimization" },
+        { id: "target", name: "Target code" },
+      ];
 
-const SOURCES = {
-  valid: `int main() {\n    int a = 10;\n    int b = 20;\n    int result = a + b * 5;\n    return result;\n}`,
-  syntaxErr: `int a = ;`,
-  semanticErr: `int a;\na = "hello";`,
-  constFold: `int x;\nx = 10 * 5 + 2;`,
-};
+      const SOURCES = {
+        valid: `int main() {\n    int a = 10;\n    int b = 20;\n    int result = a + b * 5;\n    return result;\n}`,
+        syntaxErr: `int a = ;`,
+        semanticErr: `int a;\na = "hello";`,
+        constFold: `int x;\nx = 10 * 5 + 2;`,
+      };
 
-// ---- Fixture results, keyed to exact (trimmed) source text ----
-const FIXTURES = {
-  valid: { label:'Valid arithmetic program', result: { status:'completed', phases: {
-    lexical: { status:'completed', tokens: [
-      ['int','KEYWORD','1:1'],['main','IDENTIFIER','1:5'],['(','PUNCT','1:9'],[')','PUNCT','1:10'],
-      ['{','PUNCT','1:12'],['int','KEYWORD','2:5'],['a','IDENTIFIER','2:9'],['=','OPERATOR','2:11'],
-      ['10','INT_LITERAL','2:13'],[';','PUNCT','2:15'],['int','KEYWORD','3:5'],['b','IDENTIFIER','3:9'],
-      ['=','OPERATOR','3:11'],['20','INT_LITERAL','3:13'],[';','PUNCT','3:15'],['int','KEYWORD','4:5'],
-      ['result','IDENTIFIER','4:9'],['=','OPERATOR','4:16'],['a','IDENTIFIER','4:18'],['+','OPERATOR','4:20'],
-      ['b','IDENTIFIER','4:22'],['*','OPERATOR','4:24'],['5','INT_LITERAL','4:26'],[';','PUNCT','4:27'],
-      ['return','KEYWORD','5:5'],['result','IDENTIFIER','5:12'],[';','PUNCT','5:18'],['}','PUNCT','6:1'],
-    ]},
-    syntax: { status:'completed', ast:
-`Function main : int
+      // ---- Fixture results, keyed to exact (trimmed) source text ----
+      const FIXTURES = {
+        valid: {
+          label: "Valid arithmetic program",
+          result: {
+            status: "completed",
+            phases: {
+              lexical: {
+                status: "completed",
+                tokens: [
+                  ["int", "KEYWORD", "1:1"],
+                  ["main", "IDENTIFIER", "1:5"],
+                  ["(", "PUNCT", "1:9"],
+                  [")", "PUNCT", "1:10"],
+                  ["{", "PUNCT", "1:12"],
+                  ["int", "KEYWORD", "2:5"],
+                  ["a", "IDENTIFIER", "2:9"],
+                  ["=", "OPERATOR", "2:11"],
+                  ["10", "INT_LITERAL", "2:13"],
+                  [";", "PUNCT", "2:15"],
+                  ["int", "KEYWORD", "3:5"],
+                  ["b", "IDENTIFIER", "3:9"],
+                  ["=", "OPERATOR", "3:11"],
+                  ["20", "INT_LITERAL", "3:13"],
+                  [";", "PUNCT", "3:15"],
+                  ["int", "KEYWORD", "4:5"],
+                  ["result", "IDENTIFIER", "4:9"],
+                  ["=", "OPERATOR", "4:16"],
+                  ["a", "IDENTIFIER", "4:18"],
+                  ["+", "OPERATOR", "4:20"],
+                  ["b", "IDENTIFIER", "4:22"],
+                  ["*", "OPERATOR", "4:24"],
+                  ["5", "INT_LITERAL", "4:26"],
+                  [";", "PUNCT", "4:27"],
+                  ["return", "KEYWORD", "5:5"],
+                  ["result", "IDENTIFIER", "5:12"],
+                  [";", "PUNCT", "5:18"],
+                  ["}", "PUNCT", "6:1"],
+                ],
+              },
+              syntax: {
+                status: "completed",
+                ast: `Function main : int
 └─ Block
    ├─ VarDecl a : int = IntLit 10
    ├─ VarDecl b : int = IntLit 20
@@ -272,61 +767,175 @@ const FIXTURES = {
    │        ├─ Ident b
    │        └─ IntLit 5
    └─ Return
-        └─ Ident result` },
-    semantic: { status:'completed',
-      symbolTable: [
-        ['a','variable','int','main()','10'],
-        ['b','variable','int','main()','20'],
-        ['result','variable','int','main()','a + b * 5'],
-        ['main','function','int','global','—'],
-      ],
-      checks: ['All declarations resolved before use.', 'Assignment types match declared types.', 'Return type matches function signature (int).']
-    },
-    intermediate: { status:'completed', instructions: ['t1 = b * 5','t2 = a + t1','result = t2','return result'] },
-    optimization: { status:'completed',
-      before: ['t1 = b * 5','t2 = a + t1','result = t2','return result'],
-      after:  ['t1 = b * 5','t2 = a + t1','result = t2','return result'],
-      passes: [], note: 'No constant-folding opportunity — a and b are runtime values here, not literals, so this pass makes no change.'
-    },
-    target: { status:'completed', targetLabel:'Educational pseudo-assembly',
-      instructions: ['LOAD  R1, [b]','MUL   R1, R1, #5','LOAD  R2, [a]','ADD   R2, R2, R1','STORE [result], R2','RET   R2']
-    }
-  }}},
-  syntaxErr: { label:'Syntax error', result: { status:'failed', phases: {
-    lexical: { status:'completed', tokens: [ ['int','KEYWORD','1:1'],['a','IDENTIFIER','1:5'],['=','OPERATOR','1:7'],[';','PUNCT','1:9'] ] },
-    syntax: { status:'failed', diagnostic:{ message:'Expected expression after “=”.', line:1, col:9 } },
-    semantic: { status:'not_run', reason:'Syntax analysis failed.' },
-    intermediate: { status:'not_run', reason:'Syntax analysis failed.' },
-    optimization: { status:'not_run', reason:'Syntax analysis failed.' },
-    target: { status:'not_run', reason:'Syntax analysis failed.' },
-  }}},
-  semanticErr: { label:'Semantic error', result: { status:'failed', phases: {
-    lexical: { status:'completed', tokens: [
-      ['int','KEYWORD','1:1'],['a','IDENTIFIER','1:5'],[';','PUNCT','1:6'],
-      ['a','IDENTIFIER','2:1'],['=','OPERATOR','2:3'],['"hello"','STRING_LITERAL','2:5'],[';','PUNCT','2:12'],
-    ]},
-    syntax: { status:'completed', ast:
-`Block
+        └─ Ident result`,
+              },
+              semantic: {
+                status: "completed",
+                symbolTable: [
+                  ["a", "variable", "int", "main()", "10"],
+                  ["b", "variable", "int", "main()", "20"],
+                  ["result", "variable", "int", "main()", "a + b * 5"],
+                  ["main", "function", "int", "global", "—"],
+                ],
+                checks: [
+                  "All declarations resolved before use.",
+                  "Assignment types match declared types.",
+                  "Return type matches function signature (int).",
+                ],
+              },
+              intermediate: {
+                status: "completed",
+                instructions: [
+                  "t1 = b * 5",
+                  "t2 = a + t1",
+                  "result = t2",
+                  "return result",
+                ],
+              },
+              optimization: {
+                status: "completed",
+                before: [
+                  "t1 = b * 5",
+                  "t2 = a + t1",
+                  "result = t2",
+                  "return result",
+                ],
+                after: [
+                  "t1 = b * 5",
+                  "t2 = a + t1",
+                  "result = t2",
+                  "return result",
+                ],
+                passes: [],
+                note: "No constant-folding opportunity — a and b are runtime values here, not literals, so this pass makes no change.",
+              },
+              target: {
+                status: "completed",
+                targetLabel: "Educational pseudo-assembly",
+                instructions: [
+                  "LOAD  R1, [b]",
+                  "MUL   R1, R1, #5",
+                  "LOAD  R2, [a]",
+                  "ADD   R2, R2, R1",
+                  "STORE [result], R2",
+                  "RET   R2",
+                ],
+              },
+            },
+          },
+        },
+        syntaxErr: {
+          label: "Syntax error",
+          result: {
+            status: "failed",
+            phases: {
+              lexical: {
+                status: "completed",
+                tokens: [
+                  ["int", "KEYWORD", "1:1"],
+                  ["a", "IDENTIFIER", "1:5"],
+                  ["=", "OPERATOR", "1:7"],
+                  [";", "PUNCT", "1:9"],
+                ],
+              },
+              syntax: {
+                status: "failed",
+                diagnostic: {
+                  message: "Expected expression after “=”.",
+                  line: 1,
+                  col: 9,
+                },
+              },
+              semantic: {
+                status: "not_run",
+                reason: "Syntax analysis failed.",
+              },
+              intermediate: {
+                status: "not_run",
+                reason: "Syntax analysis failed.",
+              },
+              optimization: {
+                status: "not_run",
+                reason: "Syntax analysis failed.",
+              },
+              target: { status: "not_run", reason: "Syntax analysis failed." },
+            },
+          },
+        },
+        semanticErr: {
+          label: "Semantic error",
+          result: {
+            status: "failed",
+            phases: {
+              lexical: {
+                status: "completed",
+                tokens: [
+                  ["int", "KEYWORD", "1:1"],
+                  ["a", "IDENTIFIER", "1:5"],
+                  [";", "PUNCT", "1:6"],
+                  ["a", "IDENTIFIER", "2:1"],
+                  ["=", "OPERATOR", "2:3"],
+                  ['"hello"', "STRING_LITERAL", "2:5"],
+                  [";", "PUNCT", "2:12"],
+                ],
+              },
+              syntax: {
+                status: "completed",
+                ast: `Block
 ├─ VarDecl a : int
 └─ Assign
    ├─ Ident a
-   └─ StringLit "hello"` },
-    semantic: { status:'failed',
-      symbolTable: [ ['a','variable','int','global','unassigned'] ],
-      diagnostic:{ message:'Cannot assign a string literal to variable “a” of type int (incompatible types).', line:2, col:1 }
-    },
-    intermediate: { status:'not_run', reason:'Semantic analysis failed.' },
-    optimization: { status:'not_run', reason:'Semantic analysis failed.' },
-    target: { status:'not_run', reason:'Semantic analysis failed.' },
-  }}},
-  constFold: { label:'Constant folding', result: { status:'completed', phases: {
-    lexical: { status:'completed', tokens: [
-      ['int','KEYWORD','1:1'],['x','IDENTIFIER','1:5'],[';','PUNCT','1:6'],
-      ['x','IDENTIFIER','2:1'],['=','OPERATOR','2:3'],['10','INT_LITERAL','2:5'],['*','OPERATOR','2:8'],
-      ['5','INT_LITERAL','2:10'],['+','OPERATOR','2:12'],['2','INT_LITERAL','2:14'],[';','PUNCT','2:15'],
-    ]},
-    syntax: { status:'completed', ast:
-`Block
+   └─ StringLit "hello"`,
+              },
+              semantic: {
+                status: "failed",
+                symbolTable: [["a", "variable", "int", "global", "unassigned"]],
+                diagnostic: {
+                  message:
+                    "Cannot assign a string literal to variable “a” of type int (incompatible types).",
+                  line: 2,
+                  col: 1,
+                },
+              },
+              intermediate: {
+                status: "not_run",
+                reason: "Semantic analysis failed.",
+              },
+              optimization: {
+                status: "not_run",
+                reason: "Semantic analysis failed.",
+              },
+              target: {
+                status: "not_run",
+                reason: "Semantic analysis failed.",
+              },
+            },
+          },
+        },
+        constFold: {
+          label: "Constant folding",
+          result: {
+            status: "completed",
+            phases: {
+              lexical: {
+                status: "completed",
+                tokens: [
+                  ["int", "KEYWORD", "1:1"],
+                  ["x", "IDENTIFIER", "1:5"],
+                  [";", "PUNCT", "1:6"],
+                  ["x", "IDENTIFIER", "2:1"],
+                  ["=", "OPERATOR", "2:3"],
+                  ["10", "INT_LITERAL", "2:5"],
+                  ["*", "OPERATOR", "2:8"],
+                  ["5", "INT_LITERAL", "2:10"],
+                  ["+", "OPERATOR", "2:12"],
+                  ["2", "INT_LITERAL", "2:14"],
+                  [";", "PUNCT", "2:15"],
+                ],
+              },
+              syntax: {
+                status: "completed",
+                ast: `Block
 ├─ VarDecl x : int
 └─ Assign
    ├─ Ident x
@@ -334,235 +943,319 @@ const FIXTURES = {
        ├─ BinOp (*)      ← multiplication binds tighter
        │   ├─ IntLit 10
        │   └─ IntLit 5
-       └─ IntLit 2` },
-    semantic: { status:'completed',
-      symbolTable: [ ['x','variable','int','global','10*5+2'] ],
-      checks: ['Declaration resolved before use.', 'Both operands of * and + are int-compatible literals.']
-    },
-    intermediate: { status:'completed', instructions: ['t1 = 10 * 5','t2 = t1 + 2','x = t2'] },
-    optimization: { status:'completed',
-      before: ['t1 = 10 * 5','t2 = t1 + 2','x = t2'],
-      after:  ['x = 52'],
-      passes: ['Constant folding'],
-      note: 'Both operands of “10 * 5” are literals, so the multiplication is evaluated at compile time to 50; “50 + 2” is then folded to 52. Result is behavior-equivalent to the original expression.'
-    },
-    target: { status:'completed', targetLabel:'Educational pseudo-assembly', instructions: ['MOV  [x], #52'] }
-  }}},
-};
+       └─ IntLit 2`,
+              },
+              semantic: {
+                status: "completed",
+                symbolTable: [["x", "variable", "int", "global", "10*5+2"]],
+                checks: [
+                  "Declaration resolved before use.",
+                  "Both operands of * and + are int-compatible literals.",
+                ],
+              },
+              intermediate: {
+                status: "completed",
+                instructions: ["t1 = 10 * 5", "t2 = t1 + 2", "x = t2"],
+              },
+              optimization: {
+                status: "completed",
+                before: ["t1 = 10 * 5", "t2 = t1 + 2", "x = t2"],
+                after: ["x = 52"],
+                passes: ["Constant folding"],
+                note: "Both operands of “10 * 5” are literals, so the multiplication is evaluated at compile time to 50; “50 + 2” is then folded to 52. Result is behavior-equivalent to the original expression.",
+              },
+              target: {
+                status: "completed",
+                targetLabel: "Educational pseudo-assembly",
+                instructions: ["MOV  [x], #52"],
+              },
+            },
+          },
+        },
+      };
 
-// ---- state ----
-let state = { runResult:null, liveStatus:{}, stale:false, isRunning:false };
+      // ---- state ----
+      let state = {
+        runResult: null,
+        liveStatus: {},
+        stale: false,
+        isRunning: false,
+      };
 
-const els = {
-  select: document.getElementById('exampleSelect'),
-  source: document.getElementById('source'),
-  linenos: document.getElementById('linenos'),
-  analyzeBtn: document.getElementById('analyzeBtn'),
-  clearBtn: document.getElementById('clearBtn'),
-  pipeline: document.getElementById('pipeline'),
-  feed: document.getElementById('feed'),
-  statusHint: document.getElementById('statusHint'),
-};
+      const els = {
+        select: document.getElementById("exampleSelect"),
+        source: document.getElementById("source"),
+        linenos: document.getElementById("linenos"),
+        analyzeBtn: document.getElementById("analyzeBtn"),
+        clearBtn: document.getElementById("clearBtn"),
+        pipeline: document.getElementById("pipeline"),
+        feed: document.getElementById("feed"),
+        statusHint: document.getElementById("statusHint"),
+      };
 
-const delay = ms => new Promise(r => setTimeout(r, ms));
-const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function normalize(s){ return s.replace(/\r\n/g,'\n').trim(); }
-function matchFixture(src){ const n = normalize(src); for(const k in SOURCES){ if(normalize(SOURCES[k])===n) return k; } return null; }
+      const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+      const esc = (s) =>
+        String(s).replace(
+          /[&<>"]/g,
+          (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
+        );
+      function normalize(s) {
+        return s.replace(/\r\n/g, "\n").trim();
+      }
+      function matchFixture(src) {
+        const n = normalize(src);
+        for (const k in SOURCES) {
+          if (normalize(SOURCES[k]) === n) return k;
+        }
+        return null;
+      }
 
-function updateLineNumbers(){
-  const lines = els.source.value.split('\n').length || 1;
-  els.linenos.textContent = Array.from({length:lines}, (_,i)=>i+1).join('\n');
-}
-els.source.addEventListener('scroll', ()=>{ els.linenos.scrollTop = els.source.scrollTop; });
-els.source.addEventListener('input', ()=>{
-  updateLineNumbers();
-  if(state.runResult && !state.isRunning){ state.stale = true; renderStaleNotice(); }
-});
+      function updateLineNumbers() {
+        const lines = els.source.value.split("\n").length || 1;
+        els.linenos.textContent = Array.from(
+          { length: lines },
+          (_, i) => i + 1,
+        ).join("\n");
+      }
+      els.source.addEventListener("scroll", () => {
+        els.linenos.scrollTop = els.source.scrollTop;
+      });
+      els.source.addEventListener("input", () => {
+        updateLineNumbers();
+        if (state.runResult && !state.isRunning) {
+          state.stale = true;
+          renderStaleNotice();
+        }
+      });
 
-els.select.addEventListener('change', ()=>{
-  const key = els.select.value;
-  if(!key) return;
-  els.source.value = SOURCES[key];
-  state.runResult = null; state.stale = false; state.liveStatus = {};
-  updateLineNumbers();
-  els.feed.innerHTML = `<div class="empty-state"><strong>Ready to analyze</strong>Select Analyze to generate output phase by phase.</div>`;
-  renderPipeline();
-  els.statusHint.textContent = 'Example loaded. Select Analyze to run the pipeline.';
-});
+      els.select.addEventListener("change", () => {
+        const key = els.select.value;
+        if (!key) return;
+        els.source.value = SOURCES[key];
+        state.runResult = null;
+        state.stale = false;
+        state.liveStatus = {};
+        updateLineNumbers();
+        els.feed.innerHTML = `<div class="empty-state"><strong>Ready to analyze</strong>Select Analyze to generate output phase by phase.</div>`;
+        renderPipeline();
+        els.statusHint.textContent =
+          "Example loaded. Select Analyze to run the pipeline.";
+      });
 
-els.clearBtn.addEventListener('click', ()=>{
-  if(state.isRunning) return;
-  els.source.value = ''; els.select.value = '';
-  state.runResult = null; state.stale = false; state.liveStatus = {};
-  updateLineNumbers();
-  els.feed.innerHTML = `<div class="empty-state"><strong>No run yet</strong>Choose an example and select Analyze — each phase will generate its output in order, top to bottom.</div>`;
-  renderPipeline();
-  els.statusHint.textContent = 'Load a predefined example, then select Analyze to run the pipeline.';
-});
+      els.clearBtn.addEventListener("click", () => {
+        if (state.isRunning) return;
+        els.source.value = "";
+        els.select.value = "";
+        state.runResult = null;
+        state.stale = false;
+        state.liveStatus = {};
+        updateLineNumbers();
+        els.feed.innerHTML = `<div class="empty-state"><strong>No run yet</strong>Choose an example and select Analyze — each phase will generate its output in order, top to bottom.</div>`;
+        renderPipeline();
+        els.statusHint.textContent =
+          "Load a predefined example, then select Analyze to run the pipeline.";
+      });
 
-els.analyzeBtn.addEventListener('click', ()=>{ if(!state.isRunning) runAnalysis(); });
+      els.analyzeBtn.addEventListener("click", () => {
+        if (!state.isRunning) runAnalysis();
+      });
 
-function setControlsDisabled(disabled){
-  els.analyzeBtn.disabled = disabled;
-  els.clearBtn.disabled = disabled;
-  els.select.disabled = disabled;
-}
+      function setControlsDisabled(disabled) {
+        els.analyzeBtn.disabled = disabled;
+        els.clearBtn.disabled = disabled;
+        els.select.disabled = disabled;
+      }
 
-function renderStaleNotice(){
-  els.feed.querySelectorAll('.phase-card').forEach(c=>c.style.opacity='.45');
-  els.statusHint.textContent = 'Source changed — this output is stale. Select Analyze to regenerate.';
-}
+      function renderStaleNotice() {
+        els.feed
+          .querySelectorAll(".phase-card")
+          .forEach((c) => (c.style.opacity = ".45"));
+        els.statusHint.textContent =
+          "Source changed — this output is stale. Select Analyze to regenerate.";
+      }
 
-async function runAnalysis(){
-  const raw = els.source.value;
-  if(!raw.trim()){ els.statusHint.textContent = 'Enter or load source code before analyzing.'; return; }
-  const key = matchFixture(raw);
-  state.stale = false;
+      async function runAnalysis() {
+        const raw = els.source.value;
+        if (!raw.trim()) {
+          els.statusHint.textContent =
+            "Enter or load source code before analyzing.";
+          return;
+        }
+        const key = matchFixture(raw);
+        state.stale = false;
 
-  if(!key){
-    state.runResult = { unsupported:true };
-    state.liveStatus = {};
-    renderPipeline();
-    els.feed.innerHTML = `<div class="unsupported">
+        if (!key) {
+          state.runResult = { unsupported: true };
+          state.liveStatus = {};
+          renderPipeline();
+          els.feed.innerHTML = `<div class="unsupported">
       <strong>Unsupported input — no fixture match</strong>
       <p>This prototype only analyzes a fixed set of demonstration programs. Your source text doesn't match any of them exactly, so no phase results are generated for it — nothing is fabricated or borrowed from another example.</p>
       <p>Your text is preserved in the editor. Try one of the examples in the dropdown above.</p>
     </div>`;
-    els.statusHint.textContent = 'This input has no matching fixture.';
-    return;
-  }
+          els.statusHint.textContent = "This input has no matching fixture.";
+          return;
+        }
 
-  state.isRunning = true;
-  setControlsDisabled(true);
-  state.runResult = FIXTURES[key].result;
-  state.liveStatus = {};
-  renderPipeline();
-  els.feed.innerHTML = '';
-  els.statusHint.textContent = 'Generating — ' + FIXTURES[key].label + '…';
+        state.isRunning = true;
+        setControlsDisabled(true);
+        state.runResult = FIXTURES[key].result;
+        state.liveStatus = {};
+        renderPipeline();
+        els.feed.innerHTML = "";
+        els.statusHint.textContent =
+          "Generating — " + FIXTURES[key].label + "…";
 
-  for(let i=0;i<PHASES.length;i++){
-    const ph = PHASES[i];
-    const data = state.runResult.phases[ph.id];
+        for (let i = 0; i < PHASES.length; i++) {
+          const ph = PHASES[i];
+          const data = state.runResult.phases[ph.id];
 
-    const card = document.createElement('div');
-    card.className = 'phase-card';
-    card.id = 'card-' + ph.id;
-    card.innerHTML = `
+          const card = document.createElement("div");
+          card.className = "phase-card";
+          card.id = "card-" + ph.id;
+          card.innerHTML = `
       <div class="card-head">
-        <span class="cnum">0${i+1}</span>
+        <span class="cnum">0${i + 1}</span>
         <h3>${ph.name}</h3>
         <span class="card-status running" id="status-${ph.id}"><span class="spinner"></span>Generating…</span>
       </div>
       <div class="card-body skeleton" id="body-${ph.id}">
         <div class="skel-line"></div><div class="skel-line"></div><div class="skel-line"></div>
       </div>`;
-    els.feed.appendChild(card);
-    card.scrollIntoView({behavior:'smooth', block:'nearest'});
+          els.feed.appendChild(card);
+          card.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
-    state.liveStatus[ph.id] = 'running';
-    renderPipeline();
+          state.liveStatus[ph.id] = "running";
+          renderPipeline();
 
-    await delay(data.status === 'not_run' ? 260 : 620 + Math.random()*280);
+          await delay(
+            data.status === "not_run" ? 260 : 620 + Math.random() * 280,
+          );
 
-    fillCard(ph, data);
-    state.liveStatus[ph.id] = data.status;
-    renderPipeline();
-  }
+          fillCard(ph, data);
+          state.liveStatus[ph.id] = data.status;
+          renderPipeline();
+        }
 
-  state.isRunning = false;
-  setControlsDisabled(false);
-  els.statusHint.textContent = 'Run complete — ' + FIXTURES[key].label + '.';
-}
+        state.isRunning = false;
+        setControlsDisabled(false);
+        els.statusHint.textContent =
+          "Run complete — " + FIXTURES[key].label + ".";
+      }
 
-function fillCard(ph, data){
-  const statusEl = document.getElementById('status-' + ph.id);
-  const bodyEl = document.getElementById('body-' + ph.id);
-  statusEl.className = 'card-status ' + data.status;
-  statusEl.innerHTML = ({completed:'Completed', failed:'Failed', not_run:'Not run'})[data.status] || data.status;
-  bodyEl.classList.remove('skeleton');
-  bodyEl.innerHTML = renderPhaseBody(ph.id, data);
-}
+      function fillCard(ph, data) {
+        const statusEl = document.getElementById("status-" + ph.id);
+        const bodyEl = document.getElementById("body-" + ph.id);
+        statusEl.className = "card-status " + data.status;
+        statusEl.innerHTML =
+          { completed: "Completed", failed: "Failed", not_run: "Not run" }[
+            data.status
+          ] || data.status;
+        bodyEl.classList.remove("skeleton");
+        bodyEl.innerHTML = renderPhaseBody(ph.id, data);
+      }
 
-function renderPhaseBody(phaseId, data){
-  if(data.status === 'not_run'){
-    return `<div class="not-run-body"><strong style="color:var(--text)">Not run.</strong><br>${esc(data.reason)}</div>`;
-  }
+      function renderPhaseBody(phaseId, data) {
+        if (data.status === "not_run") {
+          return `<div class="not-run-body"><strong style="color:var(--text)">Not run.</strong><br>${esc(data.reason)}</div>`;
+        }
 
-  let html = `<span class="badge fixture">Demonstration output</span>`;
-  const diagHtml = d => `<div class="diag"><div class="dphase">DIAGNOSTIC</div><div class="dmsg">${esc(d.message)}</div>${d.line?`<div class="dloc">Line ${d.line}, column ${d.col}</div>`:''}</div>`;
+        let html = `<span class="badge fixture">Demonstration output</span>`;
+        const diagHtml = (d) =>
+          `<div class="diag"><div class="dphase">DIAGNOSTIC</div><div class="dmsg">${esc(d.message)}</div>${d.line ? `<div class="dloc">Line ${d.line}, column ${d.col}</div>` : ""}</div>`;
 
-  if(data.status === 'failed'){
-    if(phaseId === 'syntax'){
-      html += `<div class="not-run-body">Syntax analysis could not build a complete tree.</div>` + diagHtml(data.diagnostic);
-    } else if(phaseId === 'semantic'){
-      html += renderSymbolTable(data.symbolTable) + diagHtml(data.diagnostic);
-    }
-    return html;
-  }
+        if (data.status === "failed") {
+          if (phaseId === "syntax") {
+            html +=
+              `<div class="not-run-body">Syntax analysis could not build a complete tree.</div>` +
+              diagHtml(data.diagnostic);
+          } else if (phaseId === "semantic") {
+            html +=
+              renderSymbolTable(data.symbolTable) + diagHtml(data.diagnostic);
+          }
+          return html;
+        }
 
-  switch(phaseId){
-    case 'lexical':
-      html += renderTokens(data.tokens);
-      html += `<div class="explain">Token = a categorized lexical unit; lexeme = its source-text spelling. Whitespace and comments are skipped in this demonstration.</div>`;
-      break;
-    case 'syntax':
-      html += `<div class="ast-tree">${esc(data.ast)}</div>`;
-      html += `<div class="explain">AST = abstract syntax tree. Nesting shows operator precedence: deeper subtrees evaluate first.</div>`;
-      break;
-    case 'semantic':
-      html += renderSymbolTable(data.symbolTable);
-      html += `<div class="explain">${data.checks.map(c=>'✓ '+esc(c)).join('<br>')}</div>`;
-      break;
-    case 'intermediate':
-      html += `<pre class="code-block">${esc(data.instructions.join('\n'))}</pre>`;
-      html += `<div class="explain">TAC = three-address code. Each instruction has at most one operator and one assignment target; temporaries (t1, t2…) hold intermediate values.</div>`;
-      break;
-    case 'optimization':
-      html += `<div class="tac-compare">
-        <div><h4>Before</h4><pre class="code-block">${esc(data.before.join('\n'))}</pre></div>
-        <div><h4>After</h4><pre class="code-block">${esc(data.after.join('\n'))}</pre></div>
+        switch (phaseId) {
+          case "lexical":
+            html += renderTokens(data.tokens);
+            html += `<div class="explain">Token = a categorized lexical unit; lexeme = its source-text spelling. Whitespace and comments are skipped in this demonstration.</div>`;
+            break;
+          case "syntax":
+            html += `<div class="ast-tree">${esc(data.ast)}</div>`;
+            html += `<div class="explain">AST = abstract syntax tree. Nesting shows operator precedence: deeper subtrees evaluate first.</div>`;
+            break;
+          case "semantic":
+            html += renderSymbolTable(data.symbolTable);
+            html += `<div class="explain">${data.checks.map((c) => "✓ " + esc(c)).join("<br>")}</div>`;
+            break;
+          case "intermediate":
+            html += `<pre class="code-block">${esc(data.instructions.join("\n"))}</pre>`;
+            html += `<div class="explain">TAC = three-address code. Each instruction has at most one operator and one assignment target; temporaries (t1, t2…) hold intermediate values.</div>`;
+            break;
+          case "optimization":
+            html += `<div class="tac-compare">
+        <div><h4>Before</h4><pre class="code-block">${esc(data.before.join("\n"))}</pre></div>
+        <div><h4>After</h4><pre class="code-block">${esc(data.after.join("\n"))}</pre></div>
       </div>`;
-      html += data.passes.length
-        ? `<div class="pass-note"><strong>${esc(data.passes.join(', '))}</strong><br>${esc(data.note)}</div>`
-        : `<div class="pass-note">No optimization pass applied.<br>${esc(data.note)}</div>`;
-      break;
-    case 'target':
-      html += `<span class="badge illustrative">${esc(data.targetLabel)} — not executable</span>`;
-      html += `<pre class="code-block">${esc(data.instructions.join('\n'))}</pre>`;
-      html += `<div class="explain">Illustrative pseudo-assembly for teaching purposes. Not guaranteed to follow any real processor's instruction set.</div>`;
-      break;
-  }
-  return html;
-}
+            html += data.passes.length
+              ? `<div class="pass-note"><strong>${esc(data.passes.join(", "))}</strong><br>${esc(data.note)}</div>`
+              : `<div class="pass-note">No optimization pass applied.<br>${esc(data.note)}</div>`;
+            break;
+          case "target":
+            html += `<span class="badge illustrative">${esc(data.targetLabel)} </span>`;
+            html += `<pre class="code-block">${esc(data.instructions.join("\n"))}</pre>`;
+            html += `<div class="explain">Illustrative pseudo-assembly for teaching purposes. Not guaranteed to follow any real processor's instruction set.</div>`;
+            break;
+        }
+        return html;
+      }
 
-function renderTokens(tokens){
-  const rows = tokens.map(t=>`<tr><td>${esc(t[0])}</td><td>${esc(t[1])}</td><td>${esc(t[2])}</td></tr>`).join('');
-  return `<div class="scroll-x"><table><thead><tr><th>Lexeme</th><th>Category</th><th>Location</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-}
-function renderSymbolTable(rows){
-  const body = rows.map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td><td>${esc(r[3])}</td><td>${esc(r[4])}</td></tr>`).join('');
-  return `<div class="scroll-x"><table><thead><tr><th>Identifier</th><th>Kind</th><th>Type</th><th>Scope</th><th>Value / init</th></tr></thead><tbody>${body}</tbody></table></div>`;
-}
+      function renderTokens(tokens) {
+        const rows = tokens
+          .map(
+            (t) =>
+              `<tr><td>${esc(t[0])}</td><td>${esc(t[1])}</td><td>${esc(t[2])}</td></tr>`,
+          )
+          .join("");
+        return `<div class="scroll-x"><table><thead><tr><th>Lexeme</th><th>Category</th><th>Location</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      }
+      function renderSymbolTable(rows) {
+        const body = rows
+          .map(
+            (r) =>
+              `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td><td>${esc(r[3])}</td><td>${esc(r[4])}</td></tr>`,
+          )
+          .join("");
+        return `<div class="scroll-x"><table><thead><tr><th>Identifier</th><th>Kind</th><th>Type</th><th>Scope</th><th>Value / init</th></tr></thead><tbody>${body}</tbody></table></div>`;
+      }
 
-function renderPipeline(){
-  els.pipeline.innerHTML = '';
-  PHASES.forEach((ph, idx)=>{
-    const st = state.liveStatus[ph.id] || 'pending';
-    const label = ({pending:'Not run yet', running:'Generating…', completed:'Completed', failed:'Failed', not_run:'Not run'})[st];
-    const btn = document.createElement('button');
-    btn.className = 'phase-pill st-' + st;
-    btn.innerHTML = `<span class="num">0${idx+1}</span><span class="name">${ph.name.split(' ')[0]}</span>
-      <span class="status">${st==='running' ? '<span class="spinner" style="width:8px;height:8px;"></span>' : ''}${label}</span>`;
-    btn.addEventListener('click', ()=>{
-      const card = document.getElementById('card-' + ph.id);
-      if(card) card.scrollIntoView({behavior:'smooth', block:'start'});
-    });
-    els.pipeline.appendChild(btn);
-  });
-}
+      function renderPipeline() {
+        els.pipeline.innerHTML = "";
+        PHASES.forEach((ph, idx) => {
+          const st = state.liveStatus[ph.id] || "pending";
+          const label = {
+            pending: "Not run yet",
+            running: "Generating…",
+            completed: "Completed",
+            failed: "Failed",
+            not_run: "Not run",
+          }[st];
+          const btn = document.createElement("button");
+          btn.className = "phase-pill st-" + st;
+          btn.innerHTML = `<span class="num">0${idx + 1}</span><span class="name">${ph.name.split(" ")[0]}</span>
+      <span class="status">${st === "running" ? '<span class="spinner" style="width:8px;height:8px;"></span>' : ""}${label}</span>`;
+          btn.addEventListener("click", () => {
+            const card = document.getElementById("card-" + ph.id);
+            if (card)
+              card.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+          els.pipeline.appendChild(btn);
+        });
+      }
 
-updateLineNumbers();
-renderPipeline();
-</script>
-</body>
+      updateLineNumbers();
+      renderPipeline();
+    </script>
+  </body>
 </html>

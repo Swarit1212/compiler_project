@@ -846,3 +846,36 @@ export const codegen = {
     return { targetLabel: 'JVM-style educational bytecode', instructions: out };
   }
 };
+
+// Backend using javac/javap via local server
+export const backend = {
+  /**
+   * Run the Java backend analysis.
+   * @param {string} source - The source code to analyze
+   * @returns {Promise<Object>} The backend response with phases
+   */
+  run: async (source) => {
+    try {
+      const response = await fetch('http://localhost:4174/api/analyze/java', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          language: 'java',
+          source,
+          options: { target: 'jvm', standard: 'java17' }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Backend request failed with status ${response.status}`);
+      }
+
+      return response.json();
+    } catch (err) {
+      console.error('Java backend error:', err);
+      throw err;
+    }
+  }
+};

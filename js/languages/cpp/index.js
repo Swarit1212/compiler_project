@@ -113,3 +113,39 @@ export const semantic = {
 export const ir        = { generate: (ast, sym) => cIR.generate(ast, sym) };
 export const optimizer = { optimize: (instrs) => cOptimizer.optimize(instrs) };
 export const codegen   = { generate: (tac, sym) => ({ ...cCodegen.generate(tac, sym, 'cpp'), targetLabel: 'Educational pseudo-assembly (C++ ABI)' }) };
+
+// Backend using Clang/LLVM via local server
+export const backend = {
+  /**
+   * Run the C/C++ backend analysis.
+   * @param {string} source - The source code to analyze
+   * @returns {Promise<Object>} The backend response with phases
+   */
+  run: async (source) => {
+    try {
+      const response = await fetch('http://localhost:4174/api/analyze/ccpp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          language: 'cpp',
+          source: source,
+          options: {
+            target: 'x86-64',
+            standard: 'c++17'
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Backend request failed with status ${response.status}`);
+      }
+
+      return response.json();
+    } catch (err) {
+      console.error('C++ backend error:', err);
+      throw err;
+    }
+  }
+};

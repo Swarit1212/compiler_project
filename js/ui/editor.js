@@ -18,13 +18,14 @@ export const SUPPORTED_EXTENSIONS = {
 };
 
 export class Editor {
-  constructor({ textareaId, linenosId, fileInputId, statsBadgeId, onInput, onFileLoaded }) {
+  constructor({ textareaId, linenosId, fileInputId, statsBadgeId, onInput, onFileLoaded, onFileError }) {
     this.textarea     = document.getElementById(textareaId);
     this.linenos      = document.getElementById(linenosId);
     this.fileInput    = document.getElementById(fileInputId);
     this.statsBadge   = document.getElementById(statsBadgeId);
     this.onInput      = onInput ?? (() => {});
     this.onFileLoaded = onFileLoaded ?? (() => {});
+    this.onFileError = onFileError ?? (() => {});
 
     this._bindEvents();
     this.updateLineNumbers();
@@ -131,7 +132,12 @@ export class Editor {
 
     if (!SUPPORTED_EXTENSIONS[ext]) {
       const supportedList = Object.keys(SUPPORTED_EXTENSIONS).join(', ');
-      alert(`⚠️ Unsupported File Format: "${file.name}"\n\nPlease select a supported source file:\n${supportedList}`);
+      this.onFileError(`Unsupported file type. Use: ${supportedList}`);
+      return;
+    }
+
+    if (file.size > 1024 * 1024) {
+      this.onFileError('File is too large. Maximum size is 1 MB.');
       return;
     }
 
@@ -145,7 +151,7 @@ export class Editor {
     };
 
     reader.onerror = () => {
-      alert(`Failed to read file "${file.name}".`);
+      this.onFileError(`Could not read ${file.name}. Existing source was kept.`);
     };
 
     reader.readAsText(file);

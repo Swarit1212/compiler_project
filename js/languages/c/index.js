@@ -57,4 +57,40 @@ export const examples = [
   }
 ];
 
+// Backend using Clang/LLVM via local server
+export const backend = {
+  /**
+   * Run the C/C++ backend analysis.
+   * @param {string} source - The source code to analyze
+   * @returns {Promise<Object>} The backend response with phases
+   */
+  run: async (source) => {
+    try {
+      const response = await fetch('http://localhost:4174/api/analyze/ccpp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          language: 'c',
+          source: source,
+          options: {
+            target: 'x86-64',
+            standard: 'c11'
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Backend request failed with status ${response.status}`);
+      }
+
+      return response.json();
+    } catch (err) {
+      console.error('C backend error:', err);
+      throw err;
+    }
+  }
+};
+
 export { lexer, parser, semantic, ir, optimizer, codegen };

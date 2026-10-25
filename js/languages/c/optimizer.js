@@ -10,7 +10,9 @@ function evalBinOp(op, lv, rv) {
     case '+': return lv + rv;
     case '-': return lv - rv;
     case '*': return lv * rv;
-    case '/': return rv !== 0 ? lv / rv : null;
+    case '/': return rv !== 0
+      ? (Number.isInteger(lv) && Number.isInteger(rv) ? Math.trunc(lv / rv) : lv / rv)
+      : null;
     case '%': return rv !== 0 ? lv % rv : null;
     case '<<': return lv << rv;
     case '>>': return lv >> rv;
@@ -32,19 +34,20 @@ function evalBinOp(op, lv, rv) {
 // ── Instruction parser ────────────────────────────────────────────────────────
 // Parses "t1 = L op R" style TAC instructions
 function parseTAC(instr) {
+  const pure = String(instr).split(/\s*;\s*/, 1)[0].trim();
   // t1 = a op b
-  const binMatch = /^(\S+)\s*=\s*(\S+)\s+([+\-*\/\%\&\|\^\<\>\=\!]{1,3})\s+(\S+)$/.exec(instr);
+  const binMatch = /^(\S+)\s*=\s*(\S+)\s+([+\-*\/\%\&\|\^\<\>\=\!]{1,3})\s+(\S+)$/.exec(pure);
   if (binMatch) return { kind: 'assign_bin', dst: binMatch[1], left: binMatch[2], op: binMatch[3], right: binMatch[4] };
 
-  // t1 = a  (copy)
-  const copyMatch = /^(\S+)\s*=\s*(\S+)$/.exec(instr);
-  if (copyMatch) return { kind: 'assign_copy', dst: copyMatch[1], src: copyMatch[2] };
-
   // t1 = op a (unary)
-  const unMatch = /^(\S+)\s*=\s*([!~\-])(\S+)$/.exec(instr);
+  const unMatch = /^(\S+)\s*=\s*([!~\-])\s*(\S+)$/.exec(pure);
   if (unMatch) return { kind: 'assign_unary', dst: unMatch[1], op: unMatch[2], src: unMatch[3] };
 
-  return { kind: 'other', raw: instr };
+  // t1 = a  (copy)
+  const copyMatch = /^(\S+)\s*=\s*(\S+)$/.exec(pure);
+  if (copyMatch) return { kind: 'assign_copy', dst: copyMatch[1], src: copyMatch[2] };
+
+  return { kind: 'other', raw: pure };
 }
 
 // ── Pass: Constant Folding ────────────────────────────────────────────────────
@@ -72,6 +75,10 @@ function constantPropagation(instructions) {
   const constMap = new Map(); // var → constant string value
 
   const result = instructions.map(instr => {
+    if (/^\w+:$/.test(instr) || /^goto\b/.test(instr) || /^if(?:_false)?\b/.test(instr)) {
+      constMap.clear();
+      return instr;
+    }
     const p = parseTAC(instr);
 
     // Update const map when a variable is assigned a constant
@@ -112,6 +119,10 @@ function copyPropagation(instructions) {
   const copyMap = new Map();
 
   const result = instructions.map(instr => {
+    if (/^\w+:$/.test(instr) || /^goto\b/.test(instr) || /^if(?:_false)?\b/.test(instr)) {
+      copyMap.clear();
+      return instr;
+    }
     const p = parseTAC(instr);
 
     if (p.kind === 'assign_copy') {
@@ -151,12 +162,47 @@ function deadCodeElimination(instructions) {
     if (/^func_begin\s/.test(instr) || /^func_end\s/.test(instr) || /^\w+:$/.test(instr)) {
       dead = false;
     }
+
     if (dead) { changed = true; continue; }  // skip dead instruction
     result.push(instr);
     // After unconditional return or goto, subsequent code is dead
     if (/^return\b/.test(instr)) dead = true;
   }
   return { instructions: result, changed };
+}
+
+function deadStoreElimination(instructions) {
+  let changed = false;
+  const live = new Set();
+  const result = [];
+
+  for (let i = instructions.length - 1; i >= 0; i--) {
+    const instr = instructions[i];
+    const p = parseTAC(instr);
+    const isSimpleAssignment =
+      (p.kind === 'assign_copy' || p.kind === 'assign_bin' || p.kind === 'assign_unary') &&
+      p.dst && !p.dst.includes('[') && !p.dst.includes('.');
+
+    if (isSimpleAssignment && !live.has(p.dst)) {
+      changed = true;
+      continue;
+    }
+
+    if (isSimpleAssignment) live.delete(p.dst);
+    const uses = p.kind === 'assign_bin'
+      ? [p.left, p.right]
+      : p.kind === 'assign_copy' || p.kind === 'assign_unary'
+        ? [p.src]
+        : [];
+    for (const use of uses) {
+      if (!isNumStr(use)) live.add(use);
+    }
+    if (/^(?:if|if_false|return|param)\b/.test(instr)) {
+      for (const name of instr.match(/\b[A-Za-z_]\w*\b/g) || []) live.add(name);
+    }
+    result.push(instr);
+  }
+  return { instructions: result.reverse(), changed };
 }
 
 // ── Pass: Algebraic Simplification ───────────────────────────────────────────
@@ -195,6 +241,7 @@ export function optimize(instructions) {
       { name: 'Copy Propagation',          fn: copyPropagation },
       { name: 'Algebraic Simplification',  fn: algebraicSimplification },
       { name: 'Dead Code Elimination',     fn: deadCodeElimination },
+      { name: 'Dead Store Elimination',     fn: deadStoreElimination },
     ];
     for (const { name, fn } of passes) {
       const { instructions: next, changed } = fn(current);
@@ -219,6 +266,7 @@ export function optimize(instructions) {
         case 'Copy Propagation':        return 'Copy propagation: redundant variable copies were eliminated.';
         case 'Algebraic Simplification': return 'Algebraic simplification: identity operations (x*1, x+0, x*0) were reduced.';
         case 'Dead Code Elimination':   return 'Dead code elimination: unreachable instructions after unconditional returns were removed.';
+        case 'Dead Store Elimination':  return 'Dead store elimination: unused temporary assignments were removed.';
         default: return p;
       }
     }).join(' ');

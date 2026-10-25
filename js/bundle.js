@@ -48,6 +48,7 @@
   // js/languages/c/index.js
   var c_exports = {};
   __export(c_exports, {
+    backend: () => backend,
     codegen: () => codegen_exports,
     examples: () => examples,
     id: () => id,
@@ -1832,7 +1833,7 @@
       case "*":
         return lv * rv;
       case "/":
-        return rv !== 0 ? lv / rv : null;
+        return rv !== 0 ? Number.isInteger(lv) && Number.isInteger(rv) ? Math.trunc(lv / rv) : lv / rv : null;
       case "%":
         return rv !== 0 ? lv % rv : null;
       case "<<":
@@ -1866,13 +1867,14 @@
     }
   }
   function parseTAC(instr) {
-    const binMatch = /^(\S+)\s*=\s*(\S+)\s+([+\-*\/\%\&\|\^\<\>\=\!]{1,3})\s+(\S+)$/.exec(instr);
+    const pure = String(instr).split(/\s*;\s*/, 1)[0].trim();
+    const binMatch = /^(\S+)\s*=\s*(\S+)\s+([+\-*\/\%\&\|\^\<\>\=\!]{1,3})\s+(\S+)$/.exec(pure);
     if (binMatch) return { kind: "assign_bin", dst: binMatch[1], left: binMatch[2], op: binMatch[3], right: binMatch[4] };
-    const copyMatch = /^(\S+)\s*=\s*(\S+)$/.exec(instr);
-    if (copyMatch) return { kind: "assign_copy", dst: copyMatch[1], src: copyMatch[2] };
-    const unMatch = /^(\S+)\s*=\s*([!~\-])(\S+)$/.exec(instr);
+    const unMatch = /^(\S+)\s*=\s*([!~\-])\s*(\S+)$/.exec(pure);
     if (unMatch) return { kind: "assign_unary", dst: unMatch[1], op: unMatch[2], src: unMatch[3] };
-    return { kind: "other", raw: instr };
+    const copyMatch = /^(\S+)\s*=\s*(\S+)$/.exec(pure);
+    if (copyMatch) return { kind: "assign_copy", dst: copyMatch[1], src: copyMatch[2] };
+    return { kind: "other", raw: pure };
   }
   function constantFolding(instructions) {
     let changed = false;
@@ -1894,6 +1896,10 @@
     let changed = false;
     const constMap = /* @__PURE__ */ new Map();
     const result = instructions.map((instr) => {
+      if (/^\w+:$/.test(instr) || /^goto\b/.test(instr) || /^if(?:_false)?\b/.test(instr)) {
+        constMap.clear();
+        return instr;
+      }
       const p = parseTAC(instr);
       if ((p.kind === "assign_copy" || p.kind === "assign_bin") && p.dst) {
         if (p.kind === "assign_copy" && isNumStr(p.src)) {
@@ -1926,6 +1932,10 @@
     let changed = false;
     const copyMap = /* @__PURE__ */ new Map();
     const result = instructions.map((instr) => {
+      if (/^\w+:$/.test(instr) || /^goto\b/.test(instr) || /^if(?:_false)?\b/.test(instr)) {
+        copyMap.clear();
+        return instr;
+      }
       const p = parseTAC(instr);
       if (p.kind === "assign_copy") {
         if (!isNumStr(p.src)) {
@@ -1964,6 +1974,30 @@
       if (/^return\b/.test(instr)) dead = true;
     }
     return { instructions: result, changed };
+  }
+  function deadStoreElimination(instructions) {
+    let changed = false;
+    const live = /* @__PURE__ */ new Set();
+    const result = [];
+    for (let i2 = instructions.length - 1; i2 >= 0; i2--) {
+      const instr = instructions[i2];
+      const p = parseTAC(instr);
+      const isSimpleAssignment = (p.kind === "assign_copy" || p.kind === "assign_bin" || p.kind === "assign_unary") && p.dst && !p.dst.includes("[") && !p.dst.includes(".");
+      if (isSimpleAssignment && !live.has(p.dst)) {
+        changed = true;
+        continue;
+      }
+      if (isSimpleAssignment) live.delete(p.dst);
+      const uses = p.kind === "assign_bin" ? [p.left, p.right] : p.kind === "assign_copy" || p.kind === "assign_unary" ? [p.src] : [];
+      for (const use of uses) {
+        if (!isNumStr(use)) live.add(use);
+      }
+      if (/^(?:if|if_false|return|param)\b/.test(instr)) {
+        for (const name2 of instr.match(/\b[A-Za-z_]\w*\b/g) || []) live.add(name2);
+      }
+      result.push(instr);
+    }
+    return { instructions: result.reverse(), changed };
   }
   function algebraicSimplification(instructions) {
     let changed = false;
@@ -2015,7 +2049,8 @@
         { name: "Constant Propagation", fn: constantPropagation },
         { name: "Copy Propagation", fn: copyPropagation },
         { name: "Algebraic Simplification", fn: algebraicSimplification },
-        { name: "Dead Code Elimination", fn: deadCodeElimination }
+        { name: "Dead Code Elimination", fn: deadCodeElimination },
+        { name: "Dead Store Elimination", fn: deadStoreElimination }
       ];
       for (const { name: name2, fn } of passes) {
         const { instructions: next, changed } = fn(current);
@@ -2044,6 +2079,8 @@
             return "Algebraic simplification: identity operations (x*1, x+0, x*0) were reduced.";
           case "Dead Code Elimination":
             return "Dead code elimination: unreachable instructions after unconditional returns were removed.";
+          case "Dead Store Elimination":
+            return "Dead store elimination: unused temporary assignments were removed.";
           default:
             return p;
         }
@@ -2057,16 +2094,28 @@
   __export(codegen_exports, {
     generate: () => generate2
   });
-  var REG_COUNT = 8;
+  var USER_REGISTERS = ["R1", "R2", "R3"];
+  var SCRATCH_REGISTERS = {
+    _l: "R4",
+    _r: "R5",
+    _u: "R4",
+    _cond: "R4",
+    _arg: "R4",
+    _ret: "R5",
+    _vs: "R4",
+    _idx: "R5",
+    _il: "R5"
+  };
   var CodeGenerator = class {
     constructor(langId = "c") {
       this.langId = langId;
       this.output = [];
       this._regMap = /* @__PURE__ */ new Map();
-      this._regPool = Array.from({ length: REG_COUNT }, (_, i2) => `R${i2}`);
+      this._regPool = [...USER_REGISTERS];
       this._usedRegs = /* @__PURE__ */ new Set();
       this._stackVars = /* @__PURE__ */ new Map();
       this._stackOffset = 0;
+      this._currentFunction = null;
     }
     emit(s) {
       this.output.push(s);
@@ -2076,15 +2125,18 @@
     }
     allocReg(varName) {
       if (this._regMap.has(varName)) return this._regMap.get(varName);
+      if (SCRATCH_REGISTERS[varName]) return SCRATCH_REGISTERS[varName];
       const free = this._regPool.find((r) => !this._usedRegs.has(r));
       if (free) {
         this._regMap.set(varName, free);
         this._usedRegs.add(free);
         return free;
       }
-      const spilled = "R7";
-      this._regMap.set(varName, spilled);
-      return spilled;
+      if (!this._stackVars.has(varName)) {
+        this._stackOffset += 4;
+        this._stackVars.set(varName, this._stackOffset);
+      }
+      return "R6";
     }
     getReg(v) {
       if (this._regMap.has(v)) return this._regMap.get(v);
@@ -2102,6 +2154,10 @@
       } else if (v && v.startsWith('"')) {
         this.emit(`  LEA   ${destReg}, [${v}]`);
       } else {
+        if (this._stackVars.has(v)) {
+          this.emit(`  LOAD  ${destReg}, [SP, #${this._stackVars.get(v)}]`);
+          return;
+        }
         const reg = this.getReg(v);
         if (reg && reg !== destReg) {
           this.emit(`  MOV   ${destReg}, ${reg}`);
@@ -2109,6 +2165,10 @@
           this.emit(`  LOAD  ${destReg}, [${v ?? "_"}]`);
         }
       }
+    }
+    storeVar(name2, reg) {
+      const offset = this._stackVars.get(name2);
+      if (offset) this.emit(`  STORE ${reg}, [SP, #${offset}]`);
     }
     generate(instructions, symbolTable, langId) {
       const targetLabel = this._targetLabel(langId);
@@ -2148,12 +2208,18 @@
         this.emit(`  PUSH  {LR}          ; save return address`);
         this._usedRegs.clear();
         this._regMap.clear();
+        this._stackVars.clear();
+        this._stackOffset = 0;
+        this._currentFunction = fbMatch[1];
         return;
       }
       const feMatch = /^func_end\s+(\S+)$/.exec(pure);
       if (feMatch) {
+        this.emit(`${feMatch[1]}_epilogue:`);
         this.emit(`  POP   {LR}          ; restore return address`);
+        this.emit(`  BX    LR`);
         this.emit("");
+        this._currentFunction = null;
         return;
       }
       const prMatch = /^param_receive\s+(\S+)$/.exec(pure);
@@ -2178,7 +2244,7 @@
           this.loadVal(v, r);
           this.emit(`  MOV   R0, ${r}      ; return value`);
         }
-        this.emit(`  BX    LR            ; return`);
+        this.emit(`  B     ${this._currentFunction}_epilogue`);
         return;
       }
       const ifMatch = /^if\s+(\S+)\s+goto\s+(\S+)$/.exec(pure);
@@ -2245,11 +2311,13 @@
           this.emit(`  CMP   ${r1}, ${r2}`);
           const setOp = { EQ: "EQ", NEQ: "NE", LT: "LT", GT: "GT", LE: "LE", GE: "GE" }[asmOp];
           this.emit(`  MOV${setOp} ${rd}, #1`);
-          this.emit(`  MOV${setOp === "EQ" ? "NE" : "EQ"} ${rd}, #0`);
+          const inverse = { EQ: "NE", NEQ: "EQ", LT: "GE", GT: "LE", LE: "GT", GE: "LT" }[setOp];
+          this.emit(`  MOV${inverse} ${rd}, #0`);
         } else {
           this.emit(`  ${asmOp.padEnd(5)} ${rd}, ${r1}, ${r2}`);
         }
         this._regMap.set(dst, rd);
+        this.storeVar(dst, rd);
         return;
       }
       const unaryMatch = /^(\S+)\s*=\s*([!~\-])(\S+)$/.exec(pure);
@@ -2266,6 +2334,7 @@
           this.emit(`  MOVNE ${rd}, #0`);
         }
         this._regMap.set(dst, rd);
+        this.storeVar(dst, rd);
         return;
       }
       const castMatch = /^(\S+)\s*=\s*\(([^)]+)\)\s*(\S+)$/.exec(pure);
@@ -2274,6 +2343,7 @@
         const rd = this.allocReg(dst);
         this.loadVal(src, rd);
         this.emit(`  ; cast to ${castMatch[2]}`);
+        this.storeVar(dst, rd);
         return;
       }
       const arrStoreMatch = /^(\S+)\[(\S+)\]\s*=\s*(\S+)$/.exec(pure);
@@ -2293,6 +2363,7 @@
         const ri = this.allocReg("_il");
         this.loadVal(idx, ri);
         this.emit(`  LDR   ${rd}, [${arr}, ${ri}]  ; ${dst} = ${arr}[${idx}]`);
+        this.storeVar(dst, rd);
         return;
       }
       const copyMatch = /^(\S+)\s*=\s*(\S+)$/.exec(pure);
@@ -2301,6 +2372,7 @@
         const rd = this.allocReg(dst);
         this.loadVal(src, rd);
         this._regMap.set(dst, rd);
+        this.storeVar(dst, rd);
         return;
       }
       this.emit(`  ; ${instr}`);
@@ -2361,10 +2433,43 @@
 }`
     }
   ];
+  var backend = {
+    /**
+     * Run the C/C++ backend analysis.
+     * @param {string} source - The source code to analyze
+     * @returns {Promise<Object>} The backend response with phases
+     */
+    run: async (source) => {
+      try {
+        const response = await fetch("http://localhost:4174/api/analyze/ccpp", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            language: "c",
+            source,
+            options: {
+              target: "x86-64",
+              standard: "c11"
+            }
+          })
+        });
+        if (!response.ok) {
+          throw new Error(`Backend request failed with status ${response.status}`);
+        }
+        return response.json();
+      } catch (err2) {
+        console.error("C backend error:", err2);
+        throw err2;
+      }
+    }
+  };
 
   // js/languages/cpp/index.js
   var cpp_exports = {};
   __export(cpp_exports, {
+    backend: () => backend2,
     codegen: () => codegen,
     examples: () => examples2,
     id: () => id2,
@@ -2500,10 +2605,43 @@ int main() {
   var ir = { generate: (ast, sym) => generate(ast, sym) };
   var optimizer = { optimize: (instrs) => optimize(instrs) };
   var codegen = { generate: (tac, sym) => ({ ...generate2(tac, sym, "cpp"), targetLabel: "Educational pseudo-assembly (C++ ABI)" }) };
+  var backend2 = {
+    /**
+     * Run the C/C++ backend analysis.
+     * @param {string} source - The source code to analyze
+     * @returns {Promise<Object>} The backend response with phases
+     */
+    run: async (source) => {
+      try {
+        const response = await fetch("http://localhost:4174/api/analyze/ccpp", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            language: "cpp",
+            source,
+            options: {
+              target: "x86-64",
+              standard: "c++17"
+            }
+          })
+        });
+        if (!response.ok) {
+          throw new Error(`Backend request failed with status ${response.status}`);
+        }
+        return response.json();
+      } catch (err2) {
+        console.error("C++ backend error:", err2);
+        throw err2;
+      }
+    }
+  };
 
   // js/languages/java/index.js
   var java_exports = {};
   __export(java_exports, {
+    backend: () => backend3,
     codegen: () => codegen2,
     examples: () => examples3,
     id: () => id3,
@@ -3688,10 +3826,40 @@ ${(n.args || []).map((a, i2) => javaAstToText(a, cp, i2 === n.args.length - 1)).
       return { targetLabel: "JVM-style educational bytecode", instructions: out2 };
     }
   };
+  var backend3 = {
+    /**
+     * Run the Java backend analysis.
+     * @param {string} source - The source code to analyze
+     * @returns {Promise<Object>} The backend response with phases
+     */
+    run: async (source) => {
+      try {
+        const response = await fetch("http://localhost:4174/api/analyze/java", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            language: "java",
+            source,
+            options: { target: "jvm", standard: "java17" }
+          })
+        });
+        if (!response.ok) {
+          throw new Error(`Backend request failed with status ${response.status}`);
+        }
+        return response.json();
+      } catch (err2) {
+        console.error("Java backend error:", err2);
+        throw err2;
+      }
+    }
+  };
 
   // js/languages/python/index.js
   var python_exports = {};
   __export(python_exports, {
+    backend: () => backend4,
     codegen: () => codegen3,
     examples: () => examples4,
     id: () => id4,
@@ -3920,6 +4088,17 @@ print(y)
       tokens.push({ type: "EOF", lexeme: "", line: lineNum, col: 1 });
       if (errors.length) throw errors[0];
       return { tokens };
+    }
+  };
+  var backend4 = {
+    async run(source) {
+      const response = await fetch("http://localhost:4174/api/compile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: "python", source })
+      });
+      if (!response.ok) throw new Error(`TAC backend returned HTTP ${response.status}`);
+      return response.json();
     }
   };
   var parser3 = {
@@ -4807,6 +4986,7 @@ CODE ${instr.replace("func_begin ", "")}`);
   // js/languages/javascript/index.js
   var javascript_exports = {};
   __export(javascript_exports, {
+    backend: () => backend5,
     codegen: () => codegen4,
     examples: () => examples5,
     id: () => id5,
@@ -5051,6 +5231,17 @@ MAX_USERS = 200;`
       }
       tokens.push({ lexeme: "EOF", type: "EOF", line, col });
       return { tokens, errors };
+    }
+  };
+  var backend5 = {
+    async run(source) {
+      const response = await fetch("http://localhost:4174/api/compile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: "javascript", source })
+      });
+      if (!response.ok) throw new Error(`TAC backend returned HTTP ${response.status}`);
+      return response.json();
     }
   };
   var parser4 = {
@@ -5763,6 +5954,7 @@ ${obj.toTextTree(indent + "  ")}`;
   // js/languages/typescript/index.js
   var typescript_exports = {};
   __export(typescript_exports, {
+    backend: () => backend6,
     codegen: () => codegen5,
     examples: () => examples6,
     id: () => id6,
@@ -5950,6 +6142,17 @@ const area: number = width * height;`
       }
       tokens.push({ lexeme: "EOF", type: "EOF", line, col });
       return { tokens, errors };
+    }
+  };
+  var backend6 = {
+    async run(source) {
+      const response = await fetch("http://localhost:4174/api/compile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: "typescript", source })
+      });
+      if (!response.ok) throw new Error(`TAC backend returned HTTP ${response.status}`);
+      return response.json();
     }
   };
   var parser5 = {
@@ -6831,7 +7034,7 @@ WHERE id = 42;`
     ".sql": { langId: "sql", label: "SQL Query" }
   };
   var Editor = class {
-    constructor({ textareaId, linenosId, fileInputId, statsBadgeId, onInput, onFileLoaded }) {
+    constructor({ textareaId, linenosId, fileInputId, statsBadgeId, onInput, onFileLoaded, onFileError }) {
       this.textarea = document.getElementById(textareaId);
       this.linenos = document.getElementById(linenosId);
       this.fileInput = document.getElementById(fileInputId);
@@ -6839,6 +7042,8 @@ WHERE id = 42;`
       this.onInput = onInput ?? (() => {
       });
       this.onFileLoaded = onFileLoaded ?? (() => {
+      });
+      this.onFileError = onFileError ?? (() => {
       });
       this._bindEvents();
       this.updateLineNumbers();
@@ -6928,10 +7133,11 @@ WHERE id = 42;`
       const ext = extMatch ? extMatch[0].toLowerCase() : "";
       if (!SUPPORTED_EXTENSIONS[ext]) {
         const supportedList = Object.keys(SUPPORTED_EXTENSIONS).join(", ");
-        alert(`\u26A0\uFE0F Unsupported File Format: "${file.name}"
-
-Please select a supported source file:
-${supportedList}`);
+        this.onFileError(`Unsupported file type. Use: ${supportedList}`);
+        return;
+      }
+      if (file.size > 1024 * 1024) {
+        this.onFileError("File is too large. Maximum size is 1 MB.");
         return;
       }
       const { langId, label: label8 } = SUPPORTED_EXTENSIONS[ext];
@@ -6942,7 +7148,7 @@ ${supportedList}`);
         this.onFileLoaded({ content, langId, label: label8, fileName: file.name });
       };
       reader.onerror = () => {
-        alert(`Failed to read file "${file.name}".`);
+        this.onFileError(`Could not read ${file.name}. Existing source was kept.`);
       };
       reader.readAsText(file);
     }
@@ -7075,8 +7281,8 @@ ${supportedList}`);
     "target"
   ];
   var STATUS_LABEL = {
-    pending: "Not run yet",
-    running: "Generating\u2026",
+    pending: "Not run",
+    running: "Running",
     completed: "Completed",
     partial: "Limited",
     failed: "Failed",
@@ -7088,34 +7294,54 @@ ${supportedList}`);
       this.onPhaseClick = onPhaseClick ?? (() => {
       });
       this.statuses = {};
+      this.summaries = {};
+      this.activePhase = "lexical";
       this.render();
     }
-    setStatus(phaseId, status) {
+    setStatus(phaseId, status, summary = "") {
       this.statuses[phaseId] = status;
+      if (summary) this.summaries[phaseId] = summary;
       this.render();
     }
-    reset() {
+    setSummary(phaseId, summary) {
+      if (summary) this.summaries[phaseId] = summary;
+      this.render();
+    }
+    setActive(phaseId) {
+      this.activePhase = phaseId;
+      this.render();
+    }
+    reset(preserveActive = false) {
       this.statuses = {};
+      this.summaries = {};
+      if (!preserveActive) this.activePhase = "lexical";
       this.render();
     }
     render() {
+      if (!this.container) return;
       this.container.innerHTML = "";
       PHASES.forEach((id8, idx) => {
         const st = this.statuses[id8] || "pending";
         const label8 = STATUS_LABEL[st] ?? st;
         const name2 = PHASE_NAMES[id8] ?? id8;
-        const shortName = name2.split(" ")[0];
+        const shortName = id8 === "intermediate" ? "IR" : name2.split(" ")[0];
         const btn = document.createElement("button");
-        btn.className = `phase-pill st-${st}`;
+        btn.className = `phase-pill st-${st}${id8 === this.activePhase ? " is-active" : ""}`;
+        btn.setAttribute("aria-current", id8 === this.activePhase ? "step" : "false");
         btn.setAttribute("aria-label", `${name2}: ${label8}`);
         btn.innerHTML = `
+        <span class="phase-connector" aria-hidden="true"></span>
         <span class="num">0${idx + 1}</span>
         <span class="name">${shortName}</span>
         <span class="status">
           ${st === "running" ? '<span class="spinner" style="width:8px;height:8px"></span>' : ""}
           ${label8}
-        </span>`;
-        btn.addEventListener("click", () => this.onPhaseClick(id8));
+        </span>
+        <span class="phase-summary">${this.summaries[id8] || "Awaiting source"}</span>`;
+        btn.addEventListener("click", () => {
+          this.setActive(id8);
+          this.onPhaseClick(id8);
+        });
         this.container.appendChild(btn);
       });
     }
@@ -7868,9 +8094,10 @@ ${supportedList}`);
     /[&<>"]/g,
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]
   );
+  var escAttr = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   if (typeof window !== "undefined") {
     window.switchPhaseTab = (phaseId, tabName, btnEl) => {
-      const card = document.getElementById(`card-${phaseId}`);
+      const card = btnEl?.closest(".phase-workspace") || document.getElementById(`card-${phaseId}`);
       if (!card) return;
       card.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
       if (btnEl) btnEl.classList.add("active");
@@ -7915,9 +8142,7 @@ ${supportedList}`);
       <button class="tab-btn active" onclick="window.switchPhaseTab('syntax', 'visual', this)">
         \u{1F333} Visual Tree Diagram
       </button>
-      <button class="tab-btn" onclick="window.switchPhaseTab('syntax', 'text', this)">
-        \u{1F4C4} Indented AST Text
-      </button>
+      
     </div>
 
     <!-- Tab 1: Visual Tree Diagram (Default) -->
@@ -7937,9 +8162,12 @@ ${supportedList}`);
   `;
   }
   function renderSymbolTable(symbolTable) {
-    if (!symbolTable || symbolTable.length === 0)
+    const list = Array.isArray(symbolTable) ? symbolTable : symbolTable && typeof symbolTable === "object" ? Object.entries(symbolTable).map(
+      ([name2, value]) => value && typeof value === "object" ? { name: name2, ...value } : { name: name2, value }
+    ) : [];
+    if (list.length === 0)
       return '<p style="color:var(--muted)">Symbol table is empty.</p>';
-    const rows = symbolTable.map((s) => {
+    const rows = list.map((s) => {
       const isArray = Array.isArray(s);
       const name2 = isArray ? s[0] : s.name;
       const kind = isArray ? s[1] : s.kind;
@@ -7963,9 +8191,16 @@ ${supportedList}`);
     </div>`;
   }
   function renderChecks(checks = [], warnings = []) {
+    const text = (value) => typeof value === "string" ? value : value?.message ?? JSON.stringify(value);
+    const checkList = Array.isArray(checks) ? checks : [];
+    const warningList = Array.isArray(warnings) ? warnings : [];
     const items = [
-      ...checks.map((c) => `<li><span class="ck">\u2713</span>${esc4(c)}</li>`),
-      ...warnings.map((w) => `<li><span class="wn">\u26A0</span>${esc4(w)}</li>`)
+      ...checkList.map(
+        (c) => `<li><span class="ck">\u2713</span>${esc4(text(c))}</li>`
+      ),
+      ...warningList.map(
+        (w) => `<li><span class="wn">\u26A0</span>${esc4(text(w))}</li>`
+      )
     ].join("");
     if (!items) return "";
     return `<ul class="checks-list">${items}</ul>`;
@@ -7977,7 +8212,7 @@ ${supportedList}`);
     const rawCode = instructions.map(esc4).join("\n");
     const tacHtml = `
     <div class="code-block-wrap">
-      <button class="copy-btn" onclick="navigator.clipboard.writeText(${JSON.stringify(instructions.join("\n"))}).then(()=>this.textContent='Copied!')">Copy TAC</button>
+      <button class="copy-btn" data-copy="${escAttr(instructions.join("\n"))}" onclick="navigator.clipboard.writeText(this.dataset.copy).then(()=>this.textContent='Copied!')">Copy TAC</button>
       <pre class="code-block">${rawCode}</pre>
     </div>
     <div class="explain">
@@ -8039,7 +8274,7 @@ ${supportedList}`);
     return `
     <span class="badge info">${esc4(phase.targetLabel ?? "Educational target code")} \u2014 not executable</span>
     <div class="code-block-wrap">
-      <button class="copy-btn" onclick="navigator.clipboard.writeText(${JSON.stringify((phase.instructions || []).join("\n"))}).then(()=>this.textContent='Copied!')">Copy Target Code</button>
+      <button class="copy-btn" data-copy="${escAttr((phase.instructions || []).join("\n"))}" onclick="navigator.clipboard.writeText(this.dataset.copy).then(()=>this.textContent='Copied!')">Copy Target Code</button>
       <pre class="code-block">${code || "(empty)"}</pre>
     </div>
     <div class="explain">
@@ -8112,73 +8347,98 @@ ${supportedList}`);
   }
 
   // js/ui/feed.js
-  var PHASES2 = ["lexical", "syntax", "semantic", "intermediate", "optimization", "target"];
   var STATUS_LABEL2 = {
-    running: "Generating\u2026",
+    running: "Running",
     completed: "Completed",
     failed: "Failed",
-    not_run: "Not run"
+    not_run: "Not run",
+    pending: "Not run",
+    partial: "Limited"
   };
   var PhaseFeed = class {
-    constructor({ containerId }) {
+    constructor({ containerId, onActivePhaseChange }) {
       this.container = document.getElementById(containerId);
-      this._cards = {};
+      this.onActivePhaseChange = onActivePhaseChange ?? (() => {
+      });
+      this._phaseData = {};
+      this._activePhase = "lexical";
+      this._stale = false;
     }
-    showEmpty(msg = "Choose a language and example, then click <strong>Analyze</strong>.") {
-      this.container.innerHTML = `
-      <div class="empty-state">
-        <span class="icon">\u2699\uFE0F</span>
-        <strong>No run yet</strong>
-        ${msg}
-      </div>`;
-      this._cards = {};
+    showEmpty(msg = "Select a phase after running the source.") {
+      this._phaseData = {};
+      this._stale = false;
+      this.container.innerHTML = `<div class="empty-state"><strong>No analysis yet</strong>${msg}</div>`;
     }
     startRun() {
-      this.container.innerHTML = "";
-      this._cards = {};
-      PHASES2.forEach((id8, idx) => {
-        const card = this._createCard(id8, idx, "running");
-        this.container.appendChild(card);
-      });
+      this._phaseData = Object.fromEntries(PHASES.map((id8) => [id8, { status: "running" }]));
+      this._stale = false;
+      this._renderActive();
     }
     updatePhase(phaseId, phaseData) {
-      const card = this._cards[phaseId];
-      if (!card) return;
-      const statusEl = card.querySelector(".card-status");
-      const bodyEl = card.querySelector(".card-body");
-      const st = phaseData.status;
-      const label8 = STATUS_LABEL2[st] ?? st;
-      statusEl.className = `card-status ${st}`;
-      statusEl.innerHTML = `${st === "running" ? '<span class="spinner"></span>' : ""}${label8}`;
-      bodyEl.classList.remove("skeleton");
-      bodyEl.innerHTML = renderPhaseBody(phaseId, phaseData);
-      card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      this._phaseData[phaseId] = phaseData;
+      this._renderActive();
+    }
+    activatePhase(phaseId) {
+      if (!PHASES.includes(phaseId)) return;
+      this._activePhase = phaseId;
+      this._renderActive();
+      this.onActivePhaseChange(phaseId);
     }
     scrollToPhase(phaseId) {
-      const card = this._cards[phaseId];
-      if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
+      this.activatePhase(phaseId);
     }
     markStale() {
-      Object.values(this._cards).forEach((c) => c.style.opacity = ".45");
+      if (!Object.keys(this._phaseData).length) return;
+      this._stale = true;
+      this._renderActive();
     }
-    _createCard(id8, idx, initialStatus = "pending") {
-      const card = document.createElement("div");
-      card.className = "phase-card";
-      card.id = `card-${id8}`;
-      card.style.animationDelay = `${idx * 60}ms`;
-      card.innerHTML = `
-      <div class="card-head">
-        <span class="cnum">0${idx + 1}</span>
-        <h3>${PHASE_NAMES[id8] ?? id8}</h3>
-        <span class="card-status running"><span class="spinner"></span>Generating\u2026</span>
-      </div>
-      <div class="card-body skeleton">
-        <div class="skel-line"></div>
-        <div class="skel-line"></div>
-        <div class="skel-line"></div>
-      </div>`;
-      this._cards[id8] = card;
-      return card;
+    _renderActive() {
+      if (!this.container || !Object.keys(this._phaseData).length) return;
+      const idx = PHASES.indexOf(this._activePhase);
+      const phaseData = this._phaseData[this._activePhase] || { status: "not_run" };
+      const status = phaseData.status || "not_run";
+      const label8 = STATUS_LABEL2[status] ?? status;
+      const summary = this._summary(this._activePhase, phaseData);
+      const previous = PHASES[idx - 1];
+      const next = PHASES[idx + 1];
+      this.container.innerHTML = `
+      <section class="phase-workspace${this._stale ? " is-stale" : ""}" aria-live="polite">
+        <div class="phase-workspace-head">
+          <div class="phase-title-group">
+            <span class="cnum">0${idx + 1}</span>
+            <div><span class="eyebrow">Active phase</span><h3>${PHASE_NAMES[this._activePhase] ?? this._activePhase}</h3></div>
+          </div>
+          <span class="card-status ${status}">${status === "running" ? '<span class="spinner"></span>' : ""}${label8}</span>
+        </div>
+        <div class="phase-summary-row">
+          <span>${this._stale ? "Source changed. Results are stale." : summary}</span>
+          ${this._capability(phaseData)}
+        </div>
+        <div class="workspace-output ${status === "running" ? "skeleton" : ""}">
+          ${status === "running" ? '<div class="skel-line"></div><div class="skel-line"></div><div class="skel-line"></div>' : renderPhaseBody(this._activePhase, phaseData)}
+        </div>
+        <div class="phase-nav">
+          <button class="btn btn-subtle" data-phase="${previous || ""}" ${previous ? "" : "disabled"}>\u2190 Previous</button>
+          <span class="phase-position">${idx + 1} / ${PHASES.length}</span>
+          <button class="btn btn-subtle" data-phase="${next || ""}" ${next ? "" : "disabled"}>Next \u2192</button>
+        </div>
+      </section>`;
+      this.container.querySelectorAll("[data-phase]").forEach((button) => {
+        if (button.dataset.phase) button.addEventListener("click", () => this.activatePhase(button.dataset.phase));
+      });
+    }
+    _summary(phaseId, data) {
+      if (data.summary) return data.summary;
+      if (data.diagnostic) return data.diagnostic.message || "Diagnostic reported";
+      if (data.status === "running") return "Processing phase output";
+      if (data.status === "failed") return "Phase failed";
+      if (data.status === "not_run") return "Phase not run";
+      const counts = { lexical: "Tokens emitted", syntax: "Syntax tree available", semantic: "Semantic checks available", intermediate: "Intermediate representation available", optimization: "Optimization comparison available", target: "Target output available" };
+      return counts[phaseId] || "Output available";
+    }
+    _capability(data) {
+      const text = data.outputLabel || data.capability || (data.mode === "fallback" ? "Generic output" : "");
+      return text ? `<span class="capability-badge">${text}</span>` : "";
     }
   };
 
@@ -12354,8 +12614,56 @@ ${JSON.stringify(symbolNames, null, 2)}`);
 
   // js/core/runner.js
   async function runPipeline(langModule, source, callbacks = {}) {
-    const result = createResult(langModule.id, source, "live");
     const { onPhaseStart, onPhaseEnd } = callbacks;
+    let backendResult = null;
+    if (langModule.backend && typeof langModule.backend.run === "function") {
+      try {
+        backendResult = await langModule.backend.run(source);
+      } catch (err2) {
+        console.warn("Backend unavailable or failed, falling back to frontend for", langModule.id, err2);
+      }
+    }
+    if (backendResult) {
+      const result2 = createResult(langModule.id, source, "backend");
+      const lexical = langModule.lexer.tokenize(source);
+      const tree = await parseWithTreeSitter(langModule.id, source);
+      backendResult.phases = backendResult.phases || {};
+      backendResult.phases.lexical = {
+        status: "completed",
+        tokens: lexical.tokens ?? [],
+        errors: lexical.errors ?? []
+      };
+      backendResult.phases.syntax = tree?.hasError ? {
+        status: Status.FAILED,
+        diagnostic: {
+          phase: "syntax",
+          message: "Tree-sitter found invalid syntax.",
+          line: (tree.errorNode?.startPosition?.row ?? 0) + 1,
+          col: (tree.errorNode?.startPosition?.column ?? 0) + 1
+        }
+      } : {
+        status: "completed",
+        ast: tree?.ast,
+        astText: tree?.astText ?? "",
+        errors: []
+      };
+      for (const phaseId of PHASE_ORDER) {
+        const phaseData = backendResult.phases[phaseId] ?? {
+          status: Status.NOT_RUN,
+          reason: "Phase was not provided by the backend."
+        };
+        result2.phases[phaseId] = {
+          ...phaseData,
+          status: phaseData.status ?? Status.COMPLETED
+        };
+        if (onPhaseEnd) onPhaseEnd(phaseId, result2.phases[phaseId]);
+      }
+      result2.status = Object.values(result2.phases).some(
+        (phase) => phase.status === Status.FAILED
+      ) ? Status.FAILED : Status.COMPLETED;
+      return result2;
+    }
+    const result = createResult(langModule.id, source, backendResult ? "backend" : "live");
     const phaseRunners = [
       {
         id: "lexical",
@@ -12438,6 +12746,16 @@ ${JSON.stringify(symbolNames, null, 2)}`);
         continue;
       }
       try {
+        if (backendResult && i2 >= 2) {
+          const phaseData = backendResult.phases?.[id8];
+          if (!phaseData) throw new Error(`Backend did not return the ${id8} phase.`);
+          if (id8 === "semantic") ctx.symbolTable = phaseData.symbolTable;
+          if (id8 === "intermediate") ctx.instructions = phaseData.instructions;
+          if (id8 === "optimization") ctx.optimizedInstructions = phaseData.after;
+          phaseCompleted(result, id8, phaseData);
+          if (onPhaseEnd) onPhaseEnd(id8, result.phases[id8]);
+          continue;
+        }
         const phaseResult = await fn(ctx);
         if (phaseResult?.errors?.length) {
           throw phaseResult.errors[0];
@@ -12519,6 +12837,10 @@ ${JSON.stringify(symbolNames, null, 2)}`);
   var fileInput = document.getElementById("fileUploadInput");
   var statusHint = document.getElementById("statusHint");
   var modeBadge = document.getElementById("modeBadge");
+  var sourceState = document.getElementById("sourceState");
+  var fileNameEl = document.getElementById("fileName");
+  var editorLanguage = document.getElementById("editorLanguage");
+  var copySourceBtn = document.getElementById("copySourceBtn");
   var currentLangId = "c";
   var isRunning = false;
   var editor = new Editor({
@@ -12528,26 +12850,35 @@ ${JSON.stringify(symbolNames, null, 2)}`);
     statsBadgeId: "editorStatsBadge",
     onInput: () => {
       feed.markStale();
-      statusHint.textContent = "Source changed \u2014 select Analyze to run live compilation.";
+      if (sourceState) sourceState.textContent = "Source changed";
+      statusHint.textContent = "Source changed. Analyze to update results.";
     },
-    onFileLoaded: ({ content, langId, label: label8, fileName }) => {
+    onFileLoaded: ({ content, langId, label: label8, fileName: uploadedFileName }) => {
       if (langId !== currentLangId) {
         setLanguage(langId, false);
         langSelect.value = langId;
       }
       pipeline.reset();
+      if (fileNameEl) fileNameEl.textContent = uploadedFileName || "Untitled source";
+      if (editorLanguage) editorLanguage.textContent = label8;
+      if (sourceState) sourceState.textContent = "Loaded";
       feed.showEmpty(
-        `Loaded file <strong>${fileName}</strong> (${label8}). Click Analyze Pipeline to compile.`
+        `Loaded <strong>${uploadedFileName}</strong>. ${label8} selected.`
       );
-      statusHint.textContent = `Successfully loaded ${fileName} (${label8}). Ready to compile.`;
+      statusHint.textContent = `Loaded ${uploadedFileName}. ${label8} selected.`;
+    },
+    onFileError: (message) => {
+      if (sourceState) sourceState.textContent = "Upload error";
+      statusHint.textContent = message;
     }
   });
   var pipeline = new PipelineStrip({
     containerId: "pipeline",
-    onPhaseClick: (phaseId) => feed.scrollToPhase(phaseId)
+    onPhaseClick: (phaseId) => feed.activatePhase(phaseId)
   });
   var feed = new PhaseFeed({
-    containerId: "feed"
+    containerId: "feed",
+    onActivePhaseChange: (phaseId) => pipeline.setActive(phaseId)
   });
   function initLanguageSelector() {
     langSelect.innerHTML = "";
@@ -12566,8 +12897,9 @@ ${JSON.stringify(symbolNames, null, 2)}`);
     currentLangId = langId;
     const mod = getLanguage(langId);
     if (modeBadge) {
-      modeBadge.textContent = `Live Analysis \xB7 ${mod.label || langId.toUpperCase()} (v2.0)`;
+      modeBadge.textContent = `${mod.label || langId.toUpperCase()} \xB7 Ready`;
     }
+    if (editorLanguage) editorLanguage.textContent = mod.label || langId.toUpperCase();
     populateExamples(mod);
     if (loadDefaultExample) {
       if (mod.examples && mod.examples.length > 0) {
@@ -12579,9 +12911,9 @@ ${JSON.stringify(symbolNames, null, 2)}`);
     pipeline.reset();
     if (loadDefaultExample) {
       feed.showEmpty(
-        `Choose an example or type custom <strong>${mod.label || langId}</strong> code, then click Analyze.`
+        `Ready to analyze ${mod.label || langId} source.`
       );
-      statusHint.textContent = `Language switched to ${mod.label || langId}. Ready to analyze.`;
+      statusHint.textContent = `${mod.label || langId} selected. Ready to analyze.`;
     }
   }
   function populateExamples(mod) {
@@ -12605,7 +12937,9 @@ ${JSON.stringify(symbolNames, null, 2)}`);
     feed.showEmpty(
       `Loaded <strong>${example.label}</strong>. Click Analyze to run all 6 phases.`
     );
-    statusHint.textContent = `Loaded ${example.label}. Ready to compile.`;
+    if (fileNameEl) fileNameEl.textContent = "Example source";
+    if (sourceState) sourceState.textContent = "Ready";
+    statusHint.textContent = `Loaded ${example.label}. Ready to analyze.`;
   }
   async function executeRun() {
     if (isRunning) return;
@@ -12618,16 +12952,17 @@ ${JSON.stringify(symbolNames, null, 2)}`);
     isRunning = true;
     setControlsDisabled(true);
     editor.clearErrorHighlights();
-    statusHint.textContent = `Analyzing ${langModule.label || currentLangId} source code\u2026`;
+    if (sourceState) sourceState.textContent = "Analyzing";
+    statusHint.textContent = `Analyzing ${langModule.label || currentLangId} source code...`;
     feed.startRun();
-    pipeline.reset();
+    pipeline.reset(true);
     try {
       const result = await runPipeline(langModule, source, {
         onPhaseStart: (phaseId) => {
           pipeline.setStatus(phaseId, "running");
         },
         onPhaseEnd: (phaseId, phaseData) => {
-          pipeline.setStatus(phaseId, phaseData.status);
+          pipeline.setStatus(phaseId, phaseData.status, phaseData.summary);
           feed.updatePhase(phaseId, phaseData);
           if (phaseData.diagnostic && phaseData.diagnostic.line != null) {
             editor.highlightErrorLine(phaseData.diagnostic.line);
@@ -12635,14 +12970,18 @@ ${JSON.stringify(symbolNames, null, 2)}`);
         }
       });
       if (result.status === "completed") {
-        statusHint.textContent = `Analysis complete \u2014 all phases processed successfully.`;
+        if (sourceState) sourceState.textContent = "Analyzed";
+        statusHint.textContent = "Analysis complete. All phases processed.";
       } else if (result.status === "partial") {
-        statusHint.textContent = `Syntax analysis complete \u2014 later educational phases are unavailable for this AST.`;
+        if (sourceState) sourceState.textContent = "Limited";
+        statusHint.textContent = "Syntax analysis complete. Later educational phases are unavailable.";
       } else {
-        statusHint.textContent = `Compilation stopped due to diagnostic error. Check error line in editor.`;
+        if (sourceState) sourceState.textContent = "Failed";
+        statusHint.textContent = "Analysis stopped. Check the highlighted line.";
       }
     } catch (err2) {
       console.error("Fatal pipeline error:", err2);
+      if (sourceState) sourceState.textContent = "Failed";
       statusHint.textContent = `Pipeline error: ${err2.message}`;
     } finally {
       isRunning = false;
@@ -12663,7 +13002,17 @@ ${JSON.stringify(symbolNames, null, 2)}`);
     editor.clear();
     pipeline.reset();
     feed.showEmpty("Editor cleared. Enter source code to analyze.");
-    statusHint.textContent = "Source code cleared.";
+    if (fileNameEl) fileNameEl.textContent = "Untitled source";
+    if (sourceState) sourceState.textContent = "Ready";
+    statusHint.textContent = "Source cleared.";
+  });
+  copySourceBtn?.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(editor.getValue());
+      statusHint.textContent = "Source copied to clipboard.";
+    } catch {
+      statusHint.textContent = "Clipboard unavailable.";
+    }
   });
   if (uploadBtn && fileInput) {
     uploadBtn.addEventListener("click", () => {

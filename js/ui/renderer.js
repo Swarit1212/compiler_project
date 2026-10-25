@@ -10,11 +10,19 @@ const esc = (s) =>
     /[&<>"]/g,
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
   );
+const escAttr = (s) =>
+  String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 
 // ── Global Tab Switcher for Phase Cards ───────────────────────────────────────
 if (typeof window !== "undefined") {
   window.switchPhaseTab = (phaseId, tabName, btnEl) => {
-    const card = document.getElementById(`card-${phaseId}`);
+    const card =
+      btnEl?.closest(".phase-workspace") ||
+      document.getElementById(`card-${phaseId}`);
     if (!card) return;
 
     // Toggle active tab button
@@ -77,9 +85,7 @@ export function renderASTMultiView(ast, astText) {
       <button class="tab-btn active" onclick="window.switchPhaseTab('syntax', 'visual', this)">
         🌳 Visual Tree Diagram
       </button>
-      <button class="tab-btn" onclick="window.switchPhaseTab('syntax', 'text', this)">
-        📄 Indented AST Text
-      </button>
+      
     </div>
 
     <!-- Tab 1: Visual Tree Diagram (Default) -->
@@ -101,9 +107,19 @@ export function renderASTMultiView(ast, astText) {
 
 // ── Symbol table ──────────────────────────────────────────────────────────────
 export function renderSymbolTable(symbolTable) {
-  if (!symbolTable || symbolTable.length === 0)
+  const list = Array.isArray(symbolTable)
+    ? symbolTable
+    : symbolTable && typeof symbolTable === "object"
+      ? Object.entries(symbolTable).map(([name, value]) =>
+          value && typeof value === "object"
+            ? { name, ...value }
+            : { name, value },
+        )
+      : [];
+
+  if (list.length === 0)
     return '<p style="color:var(--muted)">Symbol table is empty.</p>';
-  const rows = symbolTable
+  const rows = list
     .map((s) => {
       const isArray = Array.isArray(s);
       const name = isArray ? s[0] : s.name;
@@ -132,9 +148,19 @@ export function renderSymbolTable(symbolTable) {
 
 // ── Checks list ───────────────────────────────────────────────────────────────
 export function renderChecks(checks = [], warnings = []) {
+  const text = (value) =>
+    typeof value === "string"
+      ? value
+      : (value?.message ?? JSON.stringify(value));
+  const checkList = Array.isArray(checks) ? checks : [];
+  const warningList = Array.isArray(warnings) ? warnings : [];
   const items = [
-    ...checks.map((c) => `<li><span class="ck">✓</span>${esc(c)}</li>`),
-    ...warnings.map((w) => `<li><span class="wn">⚠</span>${esc(w)}</li>`),
+    ...checkList.map(
+      (c) => `<li><span class="ck">✓</span>${esc(text(c))}</li>`,
+    ),
+    ...warningList.map(
+      (w) => `<li><span class="wn">⚠</span>${esc(text(w))}</li>`,
+    ),
   ].join("");
   if (!items) return "";
   return `<ul class="checks-list">${items}</ul>`;
@@ -149,7 +175,7 @@ export function renderIntermediateMultiView(instructions) {
   const rawCode = instructions.map(esc).join("\n");
   const tacHtml = `
     <div class="code-block-wrap">
-      <button class="copy-btn" onclick="navigator.clipboard.writeText(${JSON.stringify(instructions.join("\n"))}).then(()=>this.textContent='Copied!')">Copy TAC</button>
+      <button class="copy-btn" data-copy="${escAttr(instructions.join("\n"))}" onclick="navigator.clipboard.writeText(this.dataset.copy).then(()=>this.textContent='Copied!')">Copy TAC</button>
       <pre class="code-block">${rawCode}</pre>
     </div>
     <div class="explain">
@@ -221,7 +247,7 @@ export function renderTargetCode(phase) {
   return `
     <span class="badge info">${esc(phase.targetLabel ?? "Educational target code")} — not executable</span>
     <div class="code-block-wrap">
-      <button class="copy-btn" onclick="navigator.clipboard.writeText(${JSON.stringify((phase.instructions || []).join("\n"))}).then(()=>this.textContent='Copied!')">Copy Target Code</button>
+      <button class="copy-btn" data-copy="${escAttr((phase.instructions || []).join("\n"))}" onclick="navigator.clipboard.writeText(this.dataset.copy).then(()=>this.textContent='Copied!')">Copy Target Code</button>
       <pre class="code-block">${code || "(empty)"}</pre>
     </div>
     <div class="explain">

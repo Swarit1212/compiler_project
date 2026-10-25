@@ -14,6 +14,10 @@ const uploadBtn = document.getElementById("uploadBtn");
 const fileInput = document.getElementById("fileUploadInput");
 const statusHint = document.getElementById("statusHint");
 const modeBadge = document.getElementById("modeBadge");
+const sourceState = document.getElementById("sourceState");
+const fileNameEl = document.getElementById("fileName");
+const editorLanguage = document.getElementById("editorLanguage");
+const copySourceBtn = document.getElementById("copySourceBtn");
 
 let currentLangId = "c";
 let isRunning = false;
@@ -26,31 +30,39 @@ const editor = new Editor({
   statsBadgeId: "editorStatsBadge",
   onInput: () => {
     feed.markStale();
-    statusHint.textContent =
-      "Source changed — select Analyze to run live compilation.";
+    if (sourceState) sourceState.textContent = "Source changed";
+    statusHint.textContent = "Source changed. Analyze to update results.";
   },
-  onFileLoaded: ({ content, langId, label, fileName }) => {
+  onFileLoaded: ({ content, langId, label, fileName: uploadedFileName }) => {
     if (langId !== currentLangId) {
       setLanguage(langId, false);
       langSelect.value = langId;
     }
     pipeline.reset();
+    if (fileNameEl) fileNameEl.textContent = uploadedFileName || "Untitled source";
+    if (editorLanguage) editorLanguage.textContent = label;
+    if (sourceState) sourceState.textContent = "Loaded";
     feed.showEmpty(
-      `Loaded file <strong>${fileName}</strong> (${label}). Click Analyze Pipeline to compile.`,
+      `Loaded <strong>${uploadedFileName}</strong>. ${label} selected.`,
     );
-    statusHint.textContent = `Successfully loaded ${fileName} (${label}). Ready to compile.`;
+    statusHint.textContent = `Loaded ${uploadedFileName}. ${label} selected.`;
+  },
+  onFileError: (message) => {
+    if (sourceState) sourceState.textContent = "Upload error";
+    statusHint.textContent = message;
   },
 });
 
 // Initialize Pipeline Strip
 const pipeline = new PipelineStrip({
   containerId: "pipeline",
-  onPhaseClick: (phaseId) => feed.scrollToPhase(phaseId),
+  onPhaseClick: (phaseId) => feed.activatePhase(phaseId),
 });
 
 // Initialize Phase Feed
 const feed = new PhaseFeed({
   containerId: "feed",
+  onActivePhaseChange: (phaseId) => pipeline.setActive(phaseId),
 });
 
 // ── Populate Language Selector ────────────────────────────────────────────────
@@ -76,8 +88,9 @@ function setLanguage(langId, loadDefaultExample = true) {
 
   // Update mode badge
   if (modeBadge) {
-    modeBadge.textContent = `Live Analysis · ${mod.label || langId.toUpperCase()} (v2.0)`;
+    modeBadge.textContent = `${mod.label || langId.toUpperCase()} · Ready`;
   }
+  if (editorLanguage) editorLanguage.textContent = mod.label || langId.toUpperCase();
 
   // Populate examples
   populateExamples(mod);
@@ -94,9 +107,9 @@ function setLanguage(langId, loadDefaultExample = true) {
   pipeline.reset();
   if (loadDefaultExample) {
     feed.showEmpty(
-      `Choose an example or type custom <strong>${mod.label || langId}</strong> code, then click Analyze.`,
+      `Ready to analyze ${mod.label || langId} source.`,
     );
-    statusHint.textContent = `Language switched to ${mod.label || langId}. Ready to analyze.`;
+    statusHint.textContent = `${mod.label || langId} selected. Ready to analyze.`;
   }
 }
 
@@ -124,7 +137,9 @@ function loadExample(example) {
   feed.showEmpty(
     `Loaded <strong>${example.label}</strong>. Click Analyze to run all 6 phases.`,
   );
-  statusHint.textContent = `Loaded ${example.label}. Ready to compile.`;
+  if (fileNameEl) fileNameEl.textContent = "Example source";
+  if (sourceState) sourceState.textContent = "Ready";
+  statusHint.textContent = `Loaded ${example.label}. Ready to analyze.`;
 }
 
 // ── Run Compilation ───────────────────────────────────────────────────────────
@@ -141,10 +156,11 @@ async function executeRun() {
   isRunning = true;
   setControlsDisabled(true);
   editor.clearErrorHighlights();
-  statusHint.textContent = `Analyzing ${langModule.label || currentLangId} source code…`;
+  if (sourceState) sourceState.textContent = "Analyzing";
+  statusHint.textContent = `Analyzing ${langModule.label || currentLangId} source code...`;
 
   feed.startRun();
-  pipeline.reset();
+  pipeline.reset(true);
 
   try {
     const result = await runPipeline(langModule, source, {
@@ -152,7 +168,7 @@ async function executeRun() {
         pipeline.setStatus(phaseId, "running");
       },
       onPhaseEnd: (phaseId, phaseData) => {
-        pipeline.setStatus(phaseId, phaseData.status);
+        pipeline.setStatus(phaseId, phaseData.status, phaseData.summary);
         feed.updatePhase(phaseId, phaseData);
 
         // Highlight error line in editor if a diagnostic fired
@@ -163,14 +179,18 @@ async function executeRun() {
     });
 
     if (result.status === "completed") {
-      statusHint.textContent = `Analysis complete — all phases processed successfully.`;
+      if (sourceState) sourceState.textContent = "Analyzed";
+      statusHint.textContent = "Analysis complete. All phases processed.";
     } else if (result.status === "partial") {
-      statusHint.textContent = `Syntax analysis complete — later educational phases are unavailable for this AST.`;
+      if (sourceState) sourceState.textContent = "Limited";
+      statusHint.textContent = "Syntax analysis complete. Later educational phases are unavailable.";
     } else {
-      statusHint.textContent = `Compilation stopped due to diagnostic error. Check error line in editor.`;
+      if (sourceState) sourceState.textContent = "Failed";
+      statusHint.textContent = "Analysis stopped. Check the highlighted line.";
     }
   } catch (err) {
     console.error("Fatal pipeline error:", err);
+    if (sourceState) sourceState.textContent = "Failed";
     statusHint.textContent = `Pipeline error: ${err.message}`;
   } finally {
     isRunning = false;
@@ -195,7 +215,18 @@ clearBtn.addEventListener("click", () => {
   editor.clear();
   pipeline.reset();
   feed.showEmpty("Editor cleared. Enter source code to analyze.");
-  statusHint.textContent = "Source code cleared.";
+  if (fileNameEl) fileNameEl.textContent = "Untitled source";
+  if (sourceState) sourceState.textContent = "Ready";
+  statusHint.textContent = "Source cleared.";
+});
+
+copySourceBtn?.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(editor.getValue());
+    statusHint.textContent = "Source copied to clipboard.";
+  } catch {
+    statusHint.textContent = "Clipboard unavailable.";
+  }
 });
 
 if (uploadBtn && fileInput) {

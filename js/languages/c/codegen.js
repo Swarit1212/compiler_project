@@ -1,17 +1,22 @@
 // ─── C Code Generator (Educational Pseudo-Assembly) ───────────────────────────
 // Translates TAC to register-based pseudo-assembly.
 
-const REG_COUNT = 8;
+const USER_REGISTERS = ['R1', 'R2', 'R3'];
+const SCRATCH_REGISTERS = {
+  _l: 'R4', _r: 'R5', _u: 'R4', _cond: 'R4',
+  _arg: 'R4', _ret: 'R5', _vs: 'R4', _idx: 'R5', _il: 'R5',
+};
 
 class CodeGenerator {
   constructor(langId = 'c') {
     this.langId      = langId;
     this.output      = [];
     this._regMap     = new Map();  // variable → register
-    this._regPool    = Array.from({ length: REG_COUNT }, (_, i) => `R${i}`);
+    this._regPool    = [...USER_REGISTERS];
     this._usedRegs   = new Set();
-    this._stackVars  = new Map();  // for spilled variables
+    this._stackVars  = new Map();
     this._stackOffset = 0;
+    this._currentFunction = null;
   }
 
   emit(s) { this.output.push(s); }
@@ -19,16 +24,18 @@ class CodeGenerator {
 
   allocReg(varName) {
     if (this._regMap.has(varName)) return this._regMap.get(varName);
+    if (SCRATCH_REGISTERS[varName]) return SCRATCH_REGISTERS[varName];
     const free = this._regPool.find(r => !this._usedRegs.has(r));
     if (free) {
       this._regMap.set(varName, free);
       this._usedRegs.add(free);
       return free;
     }
-    // Spill: reuse R7, store to stack
-    const spilled = 'R7';
-    this._regMap.set(varName, spilled);
-    return spilled;
+    if (!this._stackVars.has(varName)) {
+      this._stackOffset += 4;
+      this._stackVars.set(varName, this._stackOffset);
+    }
+    return 'R6';
   }
 
   getReg(v) {
@@ -45,6 +52,10 @@ class CodeGenerator {
     } else if (v && v.startsWith('"')) {
       this.emit(`  LEA   ${destReg}, [${v}]`);
     } else {
+      if (this._stackVars.has(v)) {
+        this.emit(`  LOAD  ${destReg}, [SP, #${this._stackVars.get(v)}]`);
+        return;
+      }
       const reg = this.getReg(v);
       if (reg && reg !== destReg) {
         this.emit(`  MOV   ${destReg}, ${reg}`);
@@ -52,6 +63,11 @@ class CodeGenerator {
         this.emit(`  LOAD  ${destReg}, [${v ?? '_'}]`);
       }
     }
+  }
+
+  storeVar(name, reg) {
+    const offset = this._stackVars.get(name);
+    if (offset) this.emit(`  STORE ${reg}, [SP, #${offset}]`);
   }
 
   generate(instructions, symbolTable, langId) {
@@ -96,12 +112,18 @@ class CodeGenerator {
       this.emit(`  PUSH  {LR}          ; save return address`);
       this._usedRegs.clear();
       this._regMap.clear();
+      this._stackVars.clear();
+      this._stackOffset = 0;
+      this._currentFunction = fbMatch[1];
       return;
     }
     const feMatch = /^func_end\s+(\S+)$/.exec(pure);
     if (feMatch) {
+      this.emit(`${feMatch[1]}_epilogue:`);
       this.emit(`  POP   {LR}          ; restore return address`);
+      this.emit(`  BX    LR`);
       this.emit('');
+      this._currentFunction = null;
       return;
     }
 
@@ -132,7 +154,7 @@ class CodeGenerator {
         this.loadVal(v, r);
         this.emit(`  MOV   R0, ${r}      ; return value`);
       }
-      this.emit(`  BX    LR            ; return`);
+      this.emit(`  B     ${this._currentFunction}_epilogue`);
       return;
     }
 
@@ -195,11 +217,13 @@ class CodeGenerator {
         this.emit(`  CMP   ${r1}, ${r2}`);
         const setOp = { EQ:'EQ', NEQ:'NE', LT:'LT', GT:'GT', LE:'LE', GE:'GE' }[asmOp];
         this.emit(`  MOV${setOp} ${rd}, #1`);
-        this.emit(`  MOV${setOp === 'EQ' ? 'NE' : 'EQ'} ${rd}, #0`);
+        const inverse = { EQ: 'NE', NEQ: 'EQ', LT: 'GE', GT: 'LE', LE: 'GT', GE: 'LT' }[setOp];
+        this.emit(`  MOV${inverse} ${rd}, #0`);
       } else {
         this.emit(`  ${asmOp.padEnd(5)} ${rd}, ${r1}, ${r2}`);
       }
       this._regMap.set(dst, rd);
+      this.storeVar(dst, rd);
       return;
     }
 
@@ -214,6 +238,7 @@ class CodeGenerator {
       if (op === '~')  this.emit(`  MVN   ${rd}, ${rs}`);
       if (op === '!')  { this.emit(`  CMP   ${rs}, #0`); this.emit(`  MOVEQ ${rd}, #1`); this.emit(`  MOVNE ${rd}, #0`); }
       this._regMap.set(dst, rd);
+      this.storeVar(dst, rd);
       return;
     }
 
@@ -224,6 +249,7 @@ class CodeGenerator {
       const rd = this.allocReg(dst);
       this.loadVal(src, rd);
       this.emit(`  ; cast to ${castMatch[2]}`);
+      this.storeVar(dst, rd);
       return;
     }
 
@@ -247,6 +273,7 @@ class CodeGenerator {
       const ri = this.allocReg('_il');
       this.loadVal(idx, ri);
       this.emit(`  LDR   ${rd}, [${arr}, ${ri}]  ; ${dst} = ${arr}[${idx}]`);
+      this.storeVar(dst, rd);
       return;
     }
 
@@ -257,6 +284,7 @@ class CodeGenerator {
       const rd = this.allocReg(dst);
       this.loadVal(src, rd);
       this._regMap.set(dst, rd);
+      this.storeVar(dst, rd);
       return;
     }
 

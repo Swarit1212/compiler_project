@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Compiler Design Visualizer — Multi-Language Educational Platform</title>
-  <meta name="description" content="Interactive multi-language compiler visualizer demonstrating Lexical Analysis, Syntax Parsing, Semantic Checking, Intermediate Code (TAC), Optimization, and Target Code Generation.">
+  <title>Compiler Design Visualizer</title>
+  <meta name="description" content="A focused educational workbench for inspecting compiler phases.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -16,10 +16,10 @@
   <header>
     <div class="brand">
       <h1>Compiler Design Visualizer</h1>
-      <span>v2.0 · Multi-Language Academic Engine</span>
+      <span>Compiler workbench · v2.0</span>
     </div>
     <div class="header-right">
-      <div class="mode-badge" id="modeBadge">Live Analysis · C (v2.0)</div>
+      <div class="mode-badge" id="modeBadge">C · Ready</div>
     </div>
   </header>
 
@@ -30,8 +30,12 @@
       <!-- Left Column: Source Input, Language Selection & Controls -->
       <div class="left">
         <div class="panel">
-          <div class="panel-head">
-            <h2>Source Input & Language</h2>
+          <div class="panel-head source-panel-head">
+            <div>
+              <span class="eyebrow">Source</span>
+              <h2>Source input</h2>
+            </div>
+            <span class="source-state" id="sourceState">Ready</span>
           </div>
 
           <!-- Selectors: Language & Examples -->
@@ -47,6 +51,11 @@
           </div>
 
           <!-- Interactive Code Editor -->
+          <div class="editor-meta">
+            <span class="file-name" id="fileName">Untitled source</span>
+            <span class="editor-language" id="editorLanguage">C</span>
+          </div>
+
           <div class="editor-wrap">
             <div class="linenos" id="linenos" aria-hidden="true">1</div>
             <textarea id="source" spellcheck="false" placeholder="Type or paste code here to compile in real time…" aria-label="Source code editor"></textarea>
@@ -56,17 +65,27 @@
           <div class="toolbar">
             <button class="btn btn-primary" id="analyzeBtn" aria-label="Run compiler pipeline">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-              Analyze Pipeline
+              Analyze
             </button>
-            <button class="btn" id="uploadBtn" aria-label="Upload source code file">📁 Upload File</button>
+            <button class="btn btn-icon" id="uploadBtn" aria-label="Upload source code file" title="Upload source file">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>
+              <span class="sr-only">Upload</span>
+            </button>
             <input type="file" id="fileUploadInput" style="display:none" accept=".c,.h,.cpp,.hpp,.cc,.cxx,.java,.py,.js,.mjs,.ts,.sql">
-            <button class="btn" id="clearBtn" aria-label="Clear source code">Clear</button>
+            <button class="btn btn-icon" id="copySourceBtn" aria-label="Copy source code" title="Copy source code">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+              <span class="sr-only">Copy</span>
+            </button>
+            <button class="btn btn-icon" id="clearBtn" aria-label="Clear source code" title="Clear source code">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+              <span class="sr-only">Clear</span>
+            </button>
             <span class="editor-stats-badge" id="editorStatsBadge">1 line · 0 chars</span>
           </div>
 
           <!-- Status / Diagnostic Hint -->
           <div class="hint" id="statusHint" role="status">
-            Select a language and example, then click Analyze Pipeline to run all 6 compilation phases.
+            Ready to analyze. Results will appear in the phase workspace.
           </div>
         </div>
       </div>
@@ -75,15 +94,18 @@
       <div class="right">
         <div class="panel" style="margin-bottom: 16px;">
           <div class="panel-head">
-            <h2>Compilation Pipeline Stages</h2>
+            <div>
+              <span class="eyebrow">Pipeline</span>
+              <h2>Compiler phases</h2>
+            </div>
           </div>
           <div class="pipeline" id="pipeline" aria-label="Compiler phase status indicators"></div>
         </div>
 
         <div class="feed" id="feed" aria-live="polite" aria-label="Compiler phase output results">
           <div class="empty-state">
-            <strong>No run yet</strong>
-            Choose an example or write custom code, then click Analyze Pipeline.
+            <strong>No analysis yet</strong>
+            Select a phase after running the source.
           </div>
         </div>
       </div>
@@ -92,9 +114,7 @@
   </main>
 
   <!-- Footer -->
-  <footer>
-    Fully functional compiler visualization platform for academic review. Executes live character-level tokenization, recursive-descent AST parsing, scope and type validation, three-address code (TAC) generation, multi-pass optimization (constant folding/propagation & dead-code elimination), and target code generation for 7 programming languages.
-  </footer>
+  <footer>Compiler Design Visualizer · inspect each phase, one result at a time.</footer>
 
   <!-- Application Logic (Universal Bundle works via file:// and http://) -->
   <script src="js/bundle.js"></script>

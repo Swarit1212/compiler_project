@@ -142,6 +142,18 @@ export const lexer = {
   }
 };
 
+export const backend = {
+  async run(source) {
+    const response = await fetch("http://localhost:4174/api/compile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language: "typescript", source }),
+    });
+    if (!response.ok) throw new Error(`TAC backend returned HTTP ${response.status}`);
+    return response.json();
+  },
+};
+
 // ─── Parser ───────────────────────────────────────────────────────────────────
 export const parser = {
   parse(tokens) {
